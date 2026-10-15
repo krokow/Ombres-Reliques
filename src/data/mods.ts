@@ -1,0 +1,29 @@
+import type { Mods } from './progression';
+
+export function emptyMods(): Mods {
+  return {
+    maxHpPct: 0,
+    damagePct: 0,
+    critChance: 0,
+    moveSpeedPct: 0,
+    cooldownPct: 0,
+    skillCooldownPct: 0,
+    primaryCooldownPct: 0,
+    dashRechargePct: 0,
+    extraDashCharges: 0,
+    energyGainPct: 0,
+    lifesteal: 0,
+    backstabBonus: 0,
+    veilDurationPct: 0,
+    parryWindowBonus: 0,
+    blockReductionBonus: 0,
+    shieldCapBonus: 0,
+    regenCapBonus: 0,
+    tauntShieldBonus: 0,
+    slowDurationPct: 0,
+    slowedBonus: 0,
+    extraMeteors: 0,
+    maxManaFlat: 0,
+    manaRegenPct: 0,
+  };
+}

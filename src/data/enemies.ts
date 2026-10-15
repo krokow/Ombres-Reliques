@@ -13,6 +13,8 @@ interface EnemyBase {
   /** Mass-like factor: knockback and crowd pushing received are divided by this. */
   weight: number;
   palette: { body: string; dark: string; eyes: string };
+  /** Experience granted when killed (before elite/champion multipliers). */
+  xp: number;
 }
 
 export interface MeleeEnemyDef extends EnemyBase {
@@ -97,6 +99,7 @@ export const ENEMIES = {
     recoveryTicks: 30,
     cooldownTicks: 40,
     weight: 1,
+    xp: 10,
     palette: { body: '#5f7a4c', dark: '#2f3f26', eyes: '#ff4d4d' },
   },
   larva: {
@@ -115,6 +118,7 @@ export const ENEMIES = {
     recoveryTicks: 18,
     cooldownTicks: 35,
     weight: 0.5,
+    xp: 3,
     palette: { body: '#b8a77a', dark: '#5c5136', eyes: '#ff9a4d' },
   },
   boneArcher: {
@@ -140,6 +144,7 @@ export const ENEMIES = {
     recoveryTicks: 20,
     cooldownTicks: 70,
     weight: 0.8,
+    xp: 12,
     palette: { body: '#d9d2bf', dark: '#5e574a', eyes: '#6fd0ff' },
   },
   bloater: {
@@ -157,6 +162,7 @@ export const ENEMIES = {
     explosion: { radius: 62, damage: 22, knockback: 380, poisonTicks: 150 },
     deathFuseTicks: 14,
     weight: 1.4,
+    xp: 8,
     palette: { body: '#8a9a3a', dark: '#4a5320', eyes: '#ffe14d' },
   },
   cryptomancer: {
@@ -176,6 +182,7 @@ export const ENEMIES = {
     recoveryTicks: 20,
     cooldownTicks: 240,
     weight: 1,
+    xp: 20,
     palette: { body: '#3b2a52', dark: '#1d1429', eyes: '#c77dff' },
   },
 } as const satisfies Record<string, EnemyDef>;

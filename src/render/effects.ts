@@ -473,6 +473,27 @@ export class Effects {
       case 'interactFail':
         this.text(ev.x, ev.y - 26, ev.reason, PALETTE.hudDim, 10);
         break;
+      case 'levelUp': {
+        const def = CLASSES[ev.classId];
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 50,
+          color: '#9b7bff',
+          life: 0.6,
+          maxLife: 0.6,
+        });
+        this.burst(ev.x, ev.y, 24, '#c9b8ff', 180, 0.8, -Math.PI / 2, Math.PI);
+        this.text(ev.x, ev.y - 34, `${def.name} niveau ${ev.level} !`, '#c9b8ff', 12);
+        break;
+      }
+      case 'cardTaken':
+      case 'talentTaken':
+        break;
+      case 'trail':
+        this.burst(ev.x, ev.y, 3, CLASSES.shadowBlade.palette.trim, 40, 0.4, 0, Math.PI * 2, true);
+        this.ghosts.push({ x: ev.x, y: ev.y, angle: 0, life: 0.35, maxLife: 0.35 });
+        break;
       case 'status':
       case 'windup':
         break;

@@ -13,6 +13,7 @@ import { Game } from './game/game';
 import { revealAll } from './systems/dungeon';
 import { dealDamage } from './systems/damage';
 import { reviveAll } from './systems/team';
+import { addXp } from './systems/progression';
 import { spawnGroup } from './systems/waves';
 import { emptyInput, type InputFrame } from './game/inputFrame';
 import { KeyboardMouse } from './input/keyboardMouse';
@@ -24,6 +25,7 @@ import { Animator } from './render/anim';
 import { Renderer } from './render/renderer';
 import { CommandRegistry } from './ui/commands';
 import { DebugOverlay } from './ui/debugOverlay';
+import { ProgressPanel } from './ui/progressPanel';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const uiRoot = document.querySelector<HTMLElement>('#ui');
@@ -47,6 +49,7 @@ const input = new KeyboardMouse(canvas);
 const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
+const progressPanel = new ProgressPanel(uiRoot);
 let anim = new Animator();
 const commands = new CommandRegistry();
 const debug = new DebugOverlay(uiRoot, commands);
@@ -197,6 +200,16 @@ function registerCommands(): void {
     help: 'réanime les personnages KO',
     run: () => `${reviveAll(game, 1).length} réanimé(s)`,
   });
+  commands.register('xp', {
+    help: 'xp <n> — donne de l’XP au personnage actif',
+    run: ([n = '200']) => {
+      const party = game.world.req(game.player, 'party');
+      const m = party.members[party.active];
+      if (!m) return 'Aucun personnage';
+      addXp(game, m, Math.max(0, Number(n) || 0));
+      return `Niveau ${m.progress.level}, ${m.progress.pendingCards} choix en attente`;
+    },
+  });
   commands.register('killall', {
     help: 'détruit tous les ennemis',
     run: () => {
@@ -243,6 +256,7 @@ function sampleInput(): InputFrame {
         : input.consumePressed('slot3')
           ? 2
           : -1,
+    progress: progressPanel.takeAction(),
   };
 }
 
@@ -250,6 +264,7 @@ function handleMetaKeys(): void {
   if (input.consumePressed('toggleDebug')) debug.toggle();
   if (input.consumePressed('toggleHitboxes')) debug.showHitboxes = !debug.showHitboxes;
   if (input.consumePressed('map')) minimap.expanded = !minimap.expanded;
+  if (input.consumePressed('progress')) progressPanel.toggle(game);
   if (input.consumePressed('mute')) debug.print(sfx.toggleMute() ? 'Son coupé' : 'Son activé');
   input.suspended = debug.consoleOpen;
   if (!game.playerAlive) {
@@ -282,6 +297,13 @@ runLoop(clock, {
         const pt = game.world.req(game.player, 'transform');
         camera.snapTo(pt.x, pt.y);
       }
+      // Design 1b: choices wait; a cleared room is a natural moment to offer them.
+      if (ev.type === 'roomCleared' && !progressPanel.open) {
+        const pending = game.world
+          .req(game.player, 'party')
+          .members.some((m) => m.progress.pendingCards > 0);
+        if (pending) progressPanel.setOpen(true, game);
+      }
       fx.handle(ev, camera);
       anim.onEvent(ev, game);
       sfx.onEvent(ev);
@@ -304,6 +326,7 @@ runLoop(clock, {
     renderer.render(game, camera, fx, anim, alpha, dt, { showHitboxes: debug.showHitboxes });
     renderer.screenSpace();
     hud.draw(renderer.ctx, renderer.width, renderer.height, game, fx, dt);
+    progressPanel.update(game);
     minimap.draw(renderer.ctx, renderer.width, renderer.height, game, performance.now() / 1000);
 
     debug.setLines([

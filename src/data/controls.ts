@@ -22,6 +22,7 @@ export const KEY_BINDINGS = {
   retrySameSeed: ['Backspace'],
   mute: ['KeyM'],
   map: ['Tab'],
+  progress: ['KeyC'],
   toggleDebug: ['F3'],
   toggleHitboxes: ['F4'],
 } as const satisfies Record<string, readonly string[]>;

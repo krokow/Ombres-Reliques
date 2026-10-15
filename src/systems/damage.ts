@@ -8,6 +8,8 @@ import { spawnExplosion } from '../game/factories';
 import type { Sim } from '../game/sim';
 import { applyStatus, damageDealtMultiplier, damageTakenMultiplier } from './statuses';
 import { handleCharacterDown } from './team';
+import { enemiesAround } from './player';
+import { activeMods, awardKillXp, hasFlag, maxDashCharges } from './progression';
 
 export interface DamageSpec {
   amount: number;
@@ -33,7 +35,38 @@ function playerClass(sim: Sim): (typeof CLASSES)[keyof typeof CLASSES] {
 function gainEnergy(sim: Sim, amount: number): void {
   const player = sim.world.get(sim.player, 'player');
   if (!player) return;
-  player.energy = Math.min(CLASSES[player.classId].maxEnergy, player.energy + amount);
+  const gain = amount * (1 + activeMods(sim).energyGainPct);
+  player.energy = Math.min(CLASSES[player.classId].maxEnergy, player.energy + gain);
+}
+
+/** Radial stagger blast around the player (parry counter, earthshaker…). */
+export function playerBlast(
+  sim: Sim,
+  radius: number,
+  damage: number,
+  knockback: number,
+  stagger: number,
+): void {
+  const t = sim.world.req(sim.player, 'transform');
+  for (const e of enemiesAround(sim, t.x, t.y, radius)) {
+    const et = sim.world.req(e, 'transform');
+    const a = Math.atan2(et.y - t.y, et.x - t.x);
+    dealDamage(sim, e, {
+      amount: damage,
+      source: sim.player,
+      byPlayer: true,
+      crit: false,
+      backstab: false,
+      dirX: Math.cos(a),
+      dirY: Math.sin(a),
+      knockback,
+      stagger,
+      dot: false,
+      originX: t.x,
+      originY: t.y,
+    });
+  }
+  sim.events.push({ type: 'shockwave', x: t.x, y: t.y, radius, color: 'gold' });
 }
 
 /**
@@ -48,17 +81,40 @@ function blockFactor(sim: Sim, spec: DamageSpec): number {
   const facing = w.req(sim.player, 'facing').angle;
   const toOrigin = Math.atan2(spec.originY - t.y, spec.originX - t.x);
   if (Math.abs(angleDiff(facing, toOrigin)) > GUARDIAN.block.arc / 2) return 1;
-  if (p.blockTicks <= GUARDIAN.block.parryWindowTicks) {
+  const mods = activeMods(sim);
+  if (p.blockTicks <= GUARDIAN.block.parryWindowTicks + mods.parryWindowBonus) {
     if (spec.source !== null && w.has(spec.source, 'enemy')) {
       applyStatus(sim, spec.source, 'stun', GUARDIAN.block.parryStunTicks, sim.player);
     }
     gainEnergy(sim, GUARDIAN.block.parryEnergy);
     sim.events.push({ type: 'parry', x: t.x, y: t.y, angle: facing });
     sim.hitstop(FEEL.hitstop.crit);
+    if (hasFlag(sim, 'parryNova')) playerBlast(sim, 80, 10, 300, 25);
     return 0;
   }
   sim.events.push({ type: 'block', x: t.x, y: t.y, angle: facing });
-  return 1 - GUARDIAN.block.reduction;
+  const reduction = Math.min(0.95, GUARDIAN.block.reduction + mods.blockReductionBonus);
+  // Thorns: half of what the shield stopped goes back to the attacker.
+  if (hasFlag(sim, 'thorns') && spec.source !== null && w.has(spec.source, 'enemy')) {
+    const st = w.get(spec.source, 'transform');
+    if (st) {
+      dealDamage(sim, spec.source, {
+        amount: spec.amount * reduction * 0.5,
+        source: sim.player,
+        byPlayer: true,
+        crit: false,
+        backstab: false,
+        dirX: Math.cos(toOrigin),
+        dirY: Math.sin(toOrigin),
+        knockback: 80,
+        stagger: 6,
+        dot: false,
+        originX: t.x,
+        originY: t.y,
+      });
+    }
+  }
+  return 1 - reduction;
 }
 
 /**
@@ -74,6 +130,7 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const targetIsPlayer = target === sim.player;
 
   let factor = damageTakenMultiplier(w, target);
+  if (spec.byPlayer && !targetIsPlayer) factor *= 1 + activeMods(sim).damagePct;
   if (spec.source !== null && w.isAlive(spec.source))
     factor *= damageDealtMultiplier(w, spec.source);
   let knockback = spec.knockback;
@@ -114,7 +171,12 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
     absorbed,
   });
 
-  if (spec.byPlayer && !targetIsPlayer) gainEnergy(sim, dealt * playerClass(sim).energyPerDamage);
+  if (spec.byPlayer && !targetIsPlayer) {
+    gainEnergy(sim, dealt * playerClass(sim).energyPerDamage);
+    const leech = activeMods(sim).lifesteal;
+    const ph = w.get(sim.player, 'health');
+    if (leech > 0 && ph && ph.hp > 0) ph.hp = Math.min(ph.max, ph.hp + dealt * leech);
+  }
   if (targetIsPlayer) gainEnergy(sim, (dealt + absorbed) * playerClass(sim).energyPerDamageTaken);
 
   if (targetIsPlayer && spec.source !== null) {
@@ -167,6 +229,7 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
       spawnExplosion(sim, target, tt.x, tt.y, { ...ex, creditPlayer: byPlayer });
     }
   }
+  if (byPlayer) awardKillXp(sim, target);
   w.destroy(target);
   if (byPlayer) onPlayerKill(sim);
 }
@@ -181,11 +244,17 @@ export function onPlayerKill(sim: Sim): void {
   const dash = w.req(sim.player, 'dash');
   party.kills++;
   gainEnergy(sim, def.energyOnKill);
-  if (def.dash.refundOnKill > 0 && dash.charges < def.dash.maxCharges) {
-    dash.charges = Math.min(def.dash.maxCharges, dash.charges + def.dash.refundOnKill);
+  const member = party.members[party.active];
+  const maxCharges = member ? maxDashCharges(member) : def.dash.maxCharges;
+  // Talents: full dash reset (blade), charge reset (guardian).
+  const refund =
+    hasFlag(sim, 'fullReset') || hasFlag(sim, 'chargeReset') ? maxCharges : def.dash.refundOnKill;
+  if (refund > 0 && dash.charges < maxCharges) {
+    dash.charges = Math.min(maxCharges, dash.charges + refund);
     dash.recharge = 0;
     const t = w.req(sim.player, 'transform');
     sim.events.push({ type: 'dashRefund', x: t.x, y: t.y });
   }
+  if (hasFlag(sim, 'killStealth')) applyStatus(sim, sim.player, 'invisible', 60);
   sim.hitstop(FEEL.hitstop.kill);
 }

@@ -81,4 +81,8 @@ export type GameEvent =
       angle: number;
       spell: 'bolt' | 'empowered' | 'frost' | 'fire' | 'meteor';
     }
-  | { type: 'interactFail'; x: number; y: number; reason: string };
+  | { type: 'interactFail'; x: number; y: number; reason: string }
+  | { type: 'levelUp'; classId: ClassId; level: number; x: number; y: number }
+  | { type: 'cardTaken'; classId: ClassId; card: string }
+  | { type: 'talentTaken'; classId: ClassId; node: string }
+  | { type: 'trail'; x: number; y: number };

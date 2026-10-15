@@ -6,6 +6,7 @@ import type { Sim } from '../../game/sim';
 import { dealDamage } from '../damage';
 import { aimPoint, enemiesAround, mobilityDirection, trySpendUltimate } from '../player';
 import { applyStatus } from '../statuses';
+import { activeMods, hasFlag, scaledCooldown } from '../progression';
 import type { Kit } from './kit';
 
 function slowAround(
@@ -46,9 +47,10 @@ function bolts(sim: Sim): void {
   if (buffer.attack <= 0 || p.primaryCooldown > 0) return;
   buffer.attack = 0;
   const b = DEF.bolt;
-  p.primaryCooldown = b.cooldownTicks;
+  p.primaryCooldown = scaledCooldown(sim, b.cooldownTicks, 'primary');
   p.boltCount++;
-  const empowered = p.boltCount % b.empowerEvery === 0;
+  const every = hasFlag(sim, 'twinBolt') ? 2 : b.empowerEvery;
+  const empowered = p.boltCount % every === 0;
   const t = w.req(sim.player, 'transform');
   const angle = w.req(sim.player, 'facing').angle;
   const x = t.x + Math.cos(angle) * (DEF.radius + 4);
@@ -83,7 +85,7 @@ function frostOrb(sim: Sim, input: InputFrame): void {
   buffer.ranged = 0;
   const o = DEF.frostOrb;
   if (!spendMana(sim, o.manaCost)) return;
-  p.rangedCooldown = o.cooldownTicks;
+  p.rangedCooldown = scaledCooldown(sim, o.cooldownTicks);
   const t = w.req(sim.player, 'transform');
   const target = aimPoint(sim, input, o.maxRange);
   const angle = Math.atan2(target.y - t.y, target.x - t.x);
@@ -151,9 +153,19 @@ function firefield(sim: Sim, input: InputFrame): void {
   buffer.skill = 0;
   const f = DEF.firefield;
   if (!spendMana(sim, f.manaCost)) return;
-  p.skillCooldown = f.cooldownTicks;
+  p.skillCooldown = scaledCooldown(sim, f.cooldownTicks, 'skill');
   const target = aimPoint(sim, input, f.maxRange);
-  spawnZone(sim, 'fire', sim.player, target.x, target.y, f.radius, f.durationTicks);
+  // Card "Feu sauvage": bigger, longer.
+  const wild = hasFlag(sim, 'wildfire');
+  spawnZone(
+    sim,
+    'fire',
+    sim.player,
+    target.x,
+    target.y,
+    f.radius * (wild ? 1.4 : 1),
+    Math.round(f.durationTicks * (wild ? 1.5 : 1)),
+  );
   sim.events.push({ type: 'cast', x: target.x, y: target.y, angle: 0, spell: 'fire' });
 }
 
@@ -164,13 +176,13 @@ function meteors(sim: Sim, input: InputFrame): void {
   const u = DEF.ultimate;
   if (!p.meteors && trySpendUltimate(sim, u.energyCost)) {
     const c = aimPoint(sim, input, 360);
-    p.meteors = { x: c.x, y: c.y, left: u.meteors, timer: 0 };
+    p.meteors = { x: c.x, y: c.y, left: u.meteors + activeMods(sim).extraMeteors, timer: 0 };
     sim.events.push({ type: 'ultStart', x: c.x, y: c.y });
   }
   const m = p.meteors;
   if (!m || --m.timer > 0) return;
   // The first meteor always lands on the cursor, the rest scatter around it.
-  const first = m.left === u.meteors;
+  const first = m.left === u.meteors + activeMods(sim).extraMeteors;
   const a = sim.rng.combat.range(-Math.PI, Math.PI);
   const r = first ? 0 : Math.sqrt(sim.rng.combat.next()) * u.spread;
   const x = m.x + Math.cos(a) * r;
@@ -184,6 +196,7 @@ function meteors(sim: Sim, input: InputFrame): void {
       creditPlayer: true,
       team: 'player',
       sourceClass: 'arcanist',
+      leavesFire: hasFlag(sim, 'meteorFire'),
     });
     sim.events.push({ type: 'cast', x, y, angle: 0, spell: 'meteor' });
   }

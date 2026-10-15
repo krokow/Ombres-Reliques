@@ -4,6 +4,7 @@ import { classDef, type ClassId } from '../data/classes';
 import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
 import { TEAM } from '../data/team';
+import { xpToNext } from '../data/progression';
 import type { Game } from '../game/game';
 import { keyLabel } from '../input/keyLabels';
 import { kitFor } from '../systems/kits';
@@ -87,7 +88,7 @@ export class Hud {
       ctx.fillStyle = '#121a33';
       ctx.fillRect(x, y + 21, barW, 4);
       ctx.fillStyle = '#5a8cff';
-      ctx.fillRect(x, y + 21, (barW * player.mana) / def.maxMana, 4);
+      ctx.fillRect(x, y + 21, Math.min(barW, (barW * player.mana) / def.maxMana), 4);
     }
     ctx.textAlign = 'left';
     ctx.fillStyle = def.palette.trim;
@@ -259,14 +260,28 @@ export class Hud {
       ctx.textBaseline = 'top';
       ctx.font = `bold 11px ${FONT}`;
       ctx.fillStyle = active ? def.palette.trim : PALETTE.hudText;
+      ctx.font = `bold 11px ${FONT}`;
       ctx.fillText(`${i + 1} ${def.name}`, x + size + 6, y + 2);
+      ctx.font = `9px ${FONT}`;
+      ctx.fillStyle = PALETTE.hudDim;
+      ctx.fillText(`Nv ${m.progress.level}`, x + size + 6, y + 13);
+      // Something to spend: pulsing badge with the panel key.
+      if (m.progress.pendingCards > 0 || m.progress.talentPoints > 0) {
+        ctx.globalAlpha = 0.6 + Math.sin(performance.now() / 150) * 0.4;
+        ctx.fillStyle = PALETTE.crit;
+        ctx.font = `bold 10px ${FONT}`;
+        ctx.fillText(`▲ ${keyLabel(KEY_BINDINGS.progress[0])}`, x + size + 50, y + 13);
+        ctx.globalAlpha = 1;
+      }
       const bw = 82;
       ctx.fillStyle = PALETTE.hpBack;
-      ctx.fillRect(x + size + 6, y + 20, bw, 6);
+      ctx.fillRect(x + size + 6, y + 24, bw, 5);
       ctx.fillStyle = m.ko ? '#555' : PALETTE.hp;
-      ctx.fillRect(x + size + 6, y + 20, (bw * m.health.hp) / m.health.max, 6);
+      ctx.fillRect(x + size + 6, y + 24, (bw * m.health.hp) / m.health.max, 5);
       ctx.fillStyle = PALETTE.energy;
-      ctx.fillRect(x + size + 6, y + 29, (bw * m.state.energy) / def.maxEnergy, 3);
+      ctx.fillRect(x + size + 6, y + 31, (bw * m.state.energy) / def.maxEnergy, 2);
+      ctx.fillStyle = '#9b7bff';
+      ctx.fillRect(x + size + 6, y + 35, (bw * m.progress.xp) / xpToNext(m.progress.level), 2);
     });
   }
 }

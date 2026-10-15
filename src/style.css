@@ -68,3 +68,162 @@ body {
 .hidden {
   display: none;
 }
+
+.progress-panel {
+  position: absolute;
+  top: 60px;
+  left: 16px;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  pointer-events: auto;
+  padding: 12px;
+  background: rgb(12 10 20 / 92%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 6px;
+  font-size: 12px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 50%);
+}
+
+.progress-panel button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pp-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.pp-tab {
+  flex: 1;
+  padding: 6px;
+  background: rgb(255 255 255 / 5%);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 4px;
+}
+
+.pp-tab.active {
+  border-color: var(--c);
+  color: var(--c);
+}
+
+.pp-close {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 4px;
+}
+
+.pp-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pp-xp {
+  width: 100%;
+  height: 5px;
+  background: #1d1a2b;
+}
+
+.pp-xp div {
+  height: 100%;
+  background: #9b7bff;
+}
+
+.pp-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px;
+  text-align: left;
+  background: linear-gradient(#211c33, #15121f);
+  border: 1px solid #4d4469;
+  border-radius: 6px;
+  transition:
+    transform 0.08s,
+    border-color 0.08s;
+}
+
+.pp-card:hover {
+  transform: translateY(-2px);
+  border-color: #9b7bff;
+}
+
+.pp-card.evo {
+  border-color: #ffd34d;
+  box-shadow: 0 0 10px rgb(255 211 77 / 25%);
+}
+
+.pp-card em {
+  color: #8a83a3;
+  font-style: normal;
+}
+
+.pp-empty {
+  margin-bottom: 12px;
+  color: #8a83a3;
+}
+
+.pp-tree {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pp-branch h4 {
+  margin: 0 0 6px;
+  text-align: center;
+  color: #cfc8e6;
+}
+
+.pp-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px;
+  text-align: left;
+  background: #17141f;
+  border: 1px solid #2f2a40;
+  border-radius: 4px;
+}
+
+.pp-node.available {
+  border-color: #7ff6ff;
+}
+
+.pp-node.taken {
+  background: #2a2240;
+  border-color: #9b7bff;
+}
+
+.pp-node.locked {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pp-link {
+  width: 2px;
+  height: 6px;
+  margin: 0 auto;
+  background: #3a3350;
+}
+
+.pp-hint {
+  margin-top: 8px;
+  color: #8a83a3;
+  text-align: center;
+}

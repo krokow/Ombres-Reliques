@@ -2,6 +2,7 @@ import type { ClassId } from '../data/classes';
 import type { EliteModifierId } from '../data/elites';
 import type { EnemyId } from '../data/enemies';
 import type { StatusApplication, StatusId } from '../data/statuses';
+import type { FlagId, Mods } from '../data/progression';
 import type { Entity, World } from './world';
 
 /** Position with the previous tick's value kept for render interpolation. */
@@ -128,6 +129,20 @@ export interface PlayerState {
   meteors: MeteorState | null;
 }
 
+/** Run progression of one character (M5). */
+export interface Progress {
+  level: number;
+  xp: number;
+  /** Level-up choices banked (design 1b: picked whenever the player wants). */
+  pendingCards: number;
+  /** Current card offer (ids), rolled when a choice is pending. */
+  offer: string[] | null;
+  talentPoints: number;
+  talents: string[];
+  /** Card id → stacks taken. */
+  cards: Record<string, number>;
+}
+
 /** One party member. Its components are swapped onto the player entity when it is active. */
 export interface Character {
   classId: ClassId;
@@ -139,6 +154,10 @@ export interface Character {
   dash: DashState;
   combo: ComboState;
   statuses: Statuses;
+  progress: Progress;
+  /** Aggregated card + talent modifiers (recomputed when progress changes). */
+  mods: Mods;
+  flags: Set<FlagId>;
 }
 
 export interface Party {
@@ -241,6 +260,8 @@ export interface Hitbox {
   creditPlayer: boolean;
   /** Class that produced it (crit stats and passives survive a switch). */
   sourceClass: ClassId | null;
+  /** Explosion leaves a fire patch when it goes off (meteor talent). */
+  leavesFire: boolean;
   /** Entities already hit: each hitbox hits a target at most once. */
   hit: Set<Entity>;
 }

@@ -33,7 +33,9 @@ type SoundName =
   | 'quake'
   | 'frost'
   | 'fire'
-  | 'bolt';
+  | 'bolt'
+  | 'levelUp'
+  | 'pick';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -109,6 +111,11 @@ export class Sfx {
         return this.play('descend');
       case 'switch':
         return this.play('switch');
+      case 'levelUp':
+        return this.play('levelUp');
+      case 'cardTaken':
+      case 'talentTaken':
+        return this.play('pick');
       case 'ko':
         return this.play('ko');
       case 'revive':
@@ -258,6 +265,15 @@ export class Sfx {
         break;
       case 'bolt':
         this.tone(t, 'sine', 900, 1500, 0.07, 0.12);
+        break;
+      case 'levelUp':
+        this.tone(t, 'triangle', 523, 523, 0.1, 0.18);
+        this.tone(t + 0.08, 'triangle', 659, 659, 0.1, 0.18);
+        this.tone(t + 0.16, 'triangle', 784, 784, 0.1, 0.18);
+        this.tone(t + 0.24, 'triangle', 1046, 1046, 0.3, 0.2);
+        break;
+      case 'pick':
+        this.tone(t, 'sine', 660, 990, 0.15, 0.2);
         break;
       case 'tick':
         this.tone(t, 'sine', 300, 250, 0.04, 0.08);

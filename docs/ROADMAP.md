@@ -126,3 +126,21 @@
 - HUD : portraits d'équipe (PV, énergie, verrou, KO), cases de compétences fournies par chaque kit,
   bouclier et mana.
 - Debug : `ko`, `revive`. 135 tests.
+
+## M5 – livré
+
+- **XP par personnage** : kills (valeur par ennemi, ×2,5 élite, ×5 champion) ; actif 100 %, réserve
+  40 %, KO 0 %. Courbe `40 × niveau^1,35`, niveau max 20.
+- **Niveaux sans pause (choix 1b)** : chaque niveau met un choix de côté ; panneau non bloquant (C),
+  ouvert automatiquement quand une salle est nettoyée avec des choix en attente. Badge ▲ sur les portraits.
+- **Cartes + talents (choix 2c)** : à chaque niveau, 1 carte parmi 3 (tirage seedé, pondéré, distinct,
+  limité par niveau minimum et cumuls) ; 1 point de talent tous les 3 niveaux dans un arbre de
+  3 branches × 3 paliers par classe.
+- **Contenu** : 7 cartes communes, 3 cartes par classe dont une **évolution** (niveau 5) :
+  Danse des lames (traînée de dash qui blesse), Séisme (charge → onde de choc), Fracture (le givre fige les
+  cibles déjà ralenties) ; 9 talents par classe dont 3 capstones (Pas de l'ombre, Marque de mort, Reset
+  total, Contre-choc, Élan, Ralliement, Sillage glacé, Cratères, Traits jumeaux).
+- **Modificateurs** agrégés par perso (`Mods` + `FlagId`) : PV, dégâts, crit, vitesse, recharges
+  (globales / compétence / principale / dash), charges de dash, énergie, vol de vie, spécifiques de kit.
+- Les choix passent par l'`InputFrame` (`progress`) : une run reste rejouable à l'identique.
+- Debug : `xp <n>`. 158 tests.

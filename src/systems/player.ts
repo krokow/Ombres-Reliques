@@ -7,6 +7,7 @@ import type { InputFrame } from '../game/inputFrame';
 import type { Sim } from '../game/sim';
 import { steer } from './movement';
 import { moveMultiplier } from './statuses';
+import { activeMods } from './progression';
 
 /** Generic player building blocks shared by every class kit. */
 
@@ -46,7 +47,8 @@ export function playerMove(sim: Sim, input: InputFrame, speedFactor: number): vo
   const mover = w.req(e, 'mover');
   w.req(e, 'facing').angle = Math.atan2(input.aimY - t.y, input.aimX - t.x);
   if (w.req(e, 'dash').active > 0) return;
-  const speed = mover.moveSpeed * speedFactor * moveMultiplier(w, e);
+  const speed =
+    mover.moveSpeed * speedFactor * moveMultiplier(w, e) * (1 + activeMods(sim).moveSpeedPct);
   steer(v, input.moveX * speed, input.moveY * speed, mover.accel, mover.decel, sim.dt);
 }
 

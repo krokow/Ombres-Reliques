@@ -23,6 +23,7 @@ import { integrateMotion, separateBodies, snapshotTransforms } from '../systems/
 import { FlowField } from '../systems/navigation';
 import { kitFor } from '../systems/kits';
 import { activeClass, playerBuffer, playerMove } from '../systems/player';
+import { applyProgressAction } from '../systems/progression';
 import { handleSwitchInput, koMembers, reviveAll, tickParty } from '../systems/team';
 import { updateZones } from '../systems/zones';
 import { tickStatuses } from '../systems/statuses';
@@ -49,7 +50,12 @@ export class Game implements Sim {
   readonly world: GameWorld = new World<Components>();
   map: TileMap;
   nav: FlowField;
-  readonly rng: { readonly combat: Rng; readonly spawn: Rng; readonly ai: Rng };
+  readonly rng: {
+    readonly combat: Rng;
+    readonly spawn: Rng;
+    readonly ai: Rng;
+    readonly progress: Rng;
+  };
   readonly player: Entity;
   /** Events produced since the presentation layer last drained them. */
   readonly events: GameEvent[] = [];
@@ -68,7 +74,12 @@ export class Game implements Sim {
     options: GameOptions = {},
   ) {
     const root = Rng.fromString(seed);
-    this.rng = { combat: root.fork('combat'), spawn: root.fork('spawn'), ai: root.fork('ai') };
+    this.rng = {
+      combat: root.fork('combat'),
+      spawn: root.fork('spawn'),
+      ai: root.fork('ai'),
+      progress: root.fork('progress'),
+    };
     this.mode = options.mode ?? 'dungeon';
     this.wavesEnabled = this.mode === 'arena' && (options.waves ?? true);
     this.level = options.startLevel ?? 1;
@@ -122,6 +133,7 @@ export class Game implements Sim {
         current.update(this, input);
       }
       if (input.interactPressed) this.interact();
+      if (input.progress) applyProgressAction(this, input.progress);
     } else {
       const v = this.world.req(this.player, 'velocity');
       v.x = 0;

@@ -3,7 +3,8 @@ import { FEEL } from '../../data/combat';
 import { spawnHitbox } from '../../game/factories';
 import type { InputFrame } from '../../game/inputFrame';
 import type { Sim } from '../../game/sim';
-import { dealDamage } from '../damage';
+import { dealDamage, playerBlast } from '../damage';
+import { activeMods, hasFlag, scaledCooldown } from '../progression';
 import {
   cancelCombo,
   enemiesAround,
@@ -18,7 +19,7 @@ import type { Kit } from './kit';
 
 export function addShield(sim: Sim, amount: number): void {
   const h = sim.world.req(sim.player, 'health');
-  h.shield = Math.min(DEF.shieldCap, h.shield + amount);
+  h.shield = Math.min(DEF.shieldCap + activeMods(sim).shieldCapBonus, h.shield + amount);
 }
 
 /** Radial blast used by the switch-in and the ultimate. */
@@ -98,13 +99,13 @@ function taunt(sim: Sim): void {
   const buffer = w.req(sim.player, 'buffer');
   if (buffer.skill <= 0 || p.skillCooldown > 0) return;
   buffer.skill = 0;
-  p.skillCooldown = DEF.taunt.cooldownTicks;
+  p.skillCooldown = scaledCooldown(sim, DEF.taunt.cooldownTicks, 'skill');
   const t = w.req(sim.player, 'transform');
   for (const [e, , et] of w.query('enemy', 'transform')) {
     if (Math.hypot(et.x - t.x, et.y - t.y) <= DEF.taunt.radius)
       applyStatus(sim, e, 'taunted', DEF.taunt.ticks, sim.player);
   }
-  addShield(sim, DEF.taunt.shield);
+  addShield(sim, DEF.taunt.shield + activeMods(sim).tauntShieldBonus);
   sim.events.push({ type: 'taunt', x: t.x, y: t.y, radius: DEF.taunt.radius });
 }
 
@@ -113,6 +114,14 @@ function bastion(sim: Sim): void {
   const u = DEF.ultimate;
   shockwave(sim, u.radius, u.damage, u.knockback, 30, u.stunTicks);
   addShield(sim, u.shield);
+  // Talent "Ralliement": Bastion also heals the reserve.
+  if (hasFlag(sim, 'rally')) {
+    const party = sim.world.req(sim.player, 'party');
+    party.members.forEach((m, i) => {
+      if (i !== party.active && !m.ko)
+        m.health.hp = Math.min(m.health.max, m.health.hp + m.health.max * 0.25);
+    });
+  }
   sim.hitstop(FEEL.hitstop.execution);
   const t = sim.world.req(sim.player, 'transform');
   sim.events.push({ type: 'ultStart', x: t.x, y: t.y });
@@ -121,15 +130,25 @@ function bastion(sim: Sim): void {
 /** Passive: the shield slowly rebuilds out of combat. */
 function regenShield(sim: Sim): void {
   const h = sim.world.req(sim.player, 'health');
-  if (h.sinceHit >= DEF.passive.regenDelayTicks && h.shield < DEF.passive.regenCap) {
-    h.shield = Math.min(DEF.passive.regenCap, h.shield + DEF.passive.regenPerSecond * sim.dt);
+  const cap = DEF.passive.regenCap + activeMods(sim).regenCapBonus;
+  if (h.sinceHit >= DEF.passive.regenDelayTicks && h.shield < cap) {
+    h.shield = Math.min(cap, h.shield + DEF.passive.regenPerSecond * sim.dt);
   }
 }
 
 export const guardianKit: Kit = {
   update(sim: Sim, input: InputFrame): void {
     regenShield(sim);
-    if (updateDashMotion(sim)) return;
+    const dash = sim.world.req(sim.player, 'dash');
+    const wasCharging = dash.active > 0;
+    const charging = updateDashMotion(sim);
+    // Evolution "Séisme": the charge ends in a shockwave.
+    if (wasCharging && dash.active === 0 && hasFlag(sim, 'earthshaker')) {
+      const t = sim.world.req(sim.player, 'transform');
+      for (const e of enemiesAround(sim, t.x, t.y, 90)) applyStatus(sim, e, 'stun', 40, sim.player);
+      playerBlast(sim, 90, 14, 300, 20);
+    }
+    if (charging) return;
     updateBlock(sim, input);
     charge(sim, input);
     const blocking = sim.world.req(sim.player, 'player').blockTicks >= 0;

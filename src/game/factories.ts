@@ -1,5 +1,6 @@
 import { CLASSES, SHADOW_BLADE, type ClassId } from '../data/classes';
 import type { StatusApplication } from '../data/statuses';
+import { emptyMods } from '../data/mods';
 import { DUNGEON } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
@@ -37,6 +38,17 @@ function newCharacter(classId: ClassId): Character {
     dash: { charges: def.dash.maxCharges, recharge: 0, active: 0, dirX: 1, dirY: 0 },
     combo: { index: 0, tick: -1, idleTicks: 0, hitbox: null },
     statuses: { list: [] },
+    progress: {
+      level: 1,
+      xp: 0,
+      pendingCards: 0,
+      offer: null,
+      talentPoints: 0,
+      talents: [],
+      cards: {},
+    },
+    mods: emptyMods(),
+    flags: new Set(),
   };
 }
 
@@ -164,8 +176,8 @@ export function spawnEnemy(
   return e;
 }
 
-type HitboxSpec = Omit<Hitbox, 'hit' | 'statuses' | 'creditPlayer' | 'sourceClass'> &
-  Partial<Pick<Hitbox, 'statuses' | 'creditPlayer' | 'sourceClass'>>;
+type HitboxSpec = Omit<Hitbox, 'hit' | 'statuses' | 'creditPlayer' | 'sourceClass' | 'leavesFire'> &
+  Partial<Pick<Hitbox, 'statuses' | 'creditPlayer' | 'sourceClass' | 'leavesFire'>>;
 
 export function spawnHitbox(sim: Sim, x: number, y: number, spec: HitboxSpec): Entity {
   const w = sim.world;
@@ -175,6 +187,7 @@ export function spawnHitbox(sim: Sim, x: number, y: number, spec: HitboxSpec): E
     statuses: [],
     creditPlayer: false,
     sourceClass: null,
+    leavesFire: false,
     ...spec,
     hit: new Set(),
   });
@@ -292,6 +305,7 @@ export interface ExplosionSpec {
   team?: Team;
   statuses?: readonly StatusApplication[];
   sourceClass?: ClassId | null;
+  leavesFire?: boolean;
 }
 
 /** Neutral area damage: hurts players and enemies alike, telegraphed while `delay` runs. */
@@ -320,6 +334,7 @@ export function spawnExplosion(
     ],
     creditPlayer: spec.creditPlayer,
     sourceClass: spec.sourceClass ?? null,
+    leavesFire: spec.leavesFire ?? false,
   });
   sim.world.add(e, 'renderable', { kind: 'explosion' });
   return e;

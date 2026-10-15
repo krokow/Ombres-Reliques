@@ -2,11 +2,12 @@ import { CLASSES } from '../data/classes';
 import { COMBAT } from '../data/combat';
 import type { Hitbox } from '../ecs/components';
 import type { Entity } from '../ecs/world';
-import { spawnExplosion } from '../game/factories';
+import { spawnExplosion, spawnZone } from '../game/factories';
 import type { Sim } from '../game/sim';
 import { isBehind, rollDamage, shapeHitsCircle } from './combatMath';
 import { dealDamage } from './damage';
 import { applyStatus, hasStatus, removeStatus } from './statuses';
+import { memberOf } from './progression';
 
 /** Moves attached hitboxes, resolves overlaps with hurtboxes, expires them. */
 export function resolveHitboxes(sim: Sim): void {
@@ -29,6 +30,7 @@ export function resolveHitboxes(sim: Sim): void {
     }
     if (w.get(he, 'renderable')?.kind === 'explosion') {
       const frosty = hb.statuses.some((st) => st.id === 'slow');
+      if (hb.leavesFire) spawnZone(sim, 'fire', hb.owner, ht.x, ht.y, 40, 150);
       sim.events.push({
         type: 'explosion',
         x: ht.x,
@@ -81,16 +83,27 @@ function applyHit(sim: Sim, hb: Hitbox, ox: number, oy: number, target: Entity):
     removeStatus(w, sim.player, 'ambush');
     sim.events.push({ type: 'ambushStrike', x: tt.x, y: tt.y });
   }
+  const member = hb.sourceClass ? memberOf(sim, hb.sourceClass) : undefined;
+  const mods = member?.mods;
   const stats = canCrit
     ? {
-        critChance: def.critChance,
+        critChance: def.critChance + (mods?.critChance ?? 0),
         critMultiplier: def.critMultiplier,
-        backstabMultiplier: def.id === 'shadowBlade' ? def.backstabMultiplier : def.critMultiplier,
+        backstabMultiplier:
+          def.id === 'shadowBlade'
+            ? def.backstabMultiplier + (mods?.backstabBonus ?? 0)
+            : def.critMultiplier,
       }
     : null;
   let base = hb.damage;
+  const wasSlowed = hasStatus(w, target, 'slow');
   // Arcanist passive: slowed targets take extra damage from its spells.
-  if (def?.id === 'arcanist' && hasStatus(w, target, 'slow')) base *= def.passive.slowedDamageMult;
+  if (def?.id === 'arcanist' && wasSlowed)
+    base *= def.passive.slowedDamageMult + (mods?.slowedBonus ?? 0);
+  // Shatter (evolution): frost on an already-slowed target freezes it.
+  if (wasSlowed && member?.flags.has('shatter') && hb.statuses.some((st) => st.id === 'slow')) {
+    applyStatus(sim, target, 'stun', 45, sim.player);
+  }
   const roll = rollDamage(base, stats, backstab, sim.rng.combat, ambush);
 
   let dx = tt.x - ox;

@@ -4,6 +4,7 @@ import type { Character } from '../ecs/components';
 import type { Sim } from '../game/sim';
 import { kitFor } from './kits';
 import { cancelCombo } from './player';
+import { dashRechargeTicks, maxDashCharges } from './progression';
 
 /** Party helpers. The active character's components live on the player entity. */
 
@@ -120,9 +121,11 @@ export function tickParty(sim: Sim): void {
     if (s.rangedCooldown > 0) s.rangedCooldown--;
     if (s.skillCooldown > 0) s.skillCooldown--;
     if (m.lockout > 0) m.lockout--;
-    if (def.id === 'arcanist')
-      s.mana = Math.min(def.maxMana, s.mana + def.manaRegenPerSecond * sim.dt);
-    if (m.dash.charges < def.dash.maxCharges && ++m.dash.recharge >= def.dash.rechargeTicks) {
+    if (def.id === 'arcanist') {
+      const regen = def.manaRegenPerSecond * (1 + m.mods.manaRegenPct);
+      s.mana = Math.min(def.maxMana + m.mods.maxManaFlat, s.mana + regen * sim.dt);
+    }
+    if (m.dash.charges < maxDashCharges(m) && ++m.dash.recharge >= dashRechargeTicks(m)) {
       m.dash.charges++;
       m.dash.recharge = 0;
     }

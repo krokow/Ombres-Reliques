@@ -1,12 +1,20 @@
 import { SHADOW_BLADE as DEF } from '../../data/classes';
 import { FEEL } from '../../data/combat';
 import type { Entity } from '../../ecs/world';
-import { spawnShuriken, spawnSmoke } from '../../game/factories';
+import { spawnHitbox, spawnShuriken, spawnSmoke } from '../../game/factories';
 import type { InputFrame } from '../../game/inputFrame';
 import type { Sim } from '../../game/sim';
 import { dealDamage } from '../damage';
 import { isAttacking, runCombo, tryStartDash, updateDashMotion } from '../player';
 import { applyStatus, hasStatus } from '../statuses';
+import {
+  activeMember,
+  activeMods,
+  dashRechargeTicks,
+  hasFlag,
+  maxDashCharges,
+  scaledCooldown,
+} from '../progression';
 import type { Kit } from './kit';
 
 /** Targets for Execution: marked enemies first, then the most wounded, all in line of sight. */
@@ -59,13 +67,15 @@ function shuriken(sim: Sim): void {
   const buffer = w.req(e, 'buffer');
   if (buffer.ranged <= 0 || player.rangedCooldown > 0 || w.req(e, 'dash').active > 0) return;
   buffer.ranged = 0;
-  player.rangedCooldown = DEF.ranged.cooldownTicks;
+  player.rangedCooldown = scaledCooldown(sim, DEF.ranged.cooldownTicks);
   const t = w.req(e, 'transform');
-  const angle = w.req(e, 'facing').angle;
-  const x = t.x + Math.cos(angle) * DEF.radius;
-  const y = t.y + Math.sin(angle) * DEF.radius;
-  spawnShuriken(sim, e, x, y, angle);
-  sim.events.push({ type: 'throw', x, y, angle });
+  const aim = w.req(e, 'facing').angle;
+  const x = t.x + Math.cos(aim) * DEF.radius;
+  const y = t.y + Math.sin(aim) * DEF.radius;
+  // Card "Éventail": three shurikens in a fan.
+  const angles = hasFlag(sim, 'shurikenFan') ? [aim - 0.22, aim, aim + 0.22] : [aim];
+  for (const angle of angles) spawnShuriken(sim, e, x, y, angle);
+  sim.events.push({ type: 'throw', x, y, angle: aim });
 }
 
 /** Smoke veil: a cloud that makes the player invisible inside it (see zones.ts). */
@@ -77,8 +87,9 @@ function veil(sim: Sim): void {
   if (buffer.skill <= 0 || player.skillCooldown > 0) return;
   buffer.skill = 0;
   const t = w.req(e, 'transform');
-  spawnSmoke(sim, e, t.x, t.y, DEF.veil.radius, DEF.veil.durationTicks);
-  player.skillCooldown = DEF.veil.cooldownTicks;
+  const duration = Math.round(DEF.veil.durationTicks * (1 + activeMods(sim).veilDurationPct));
+  spawnSmoke(sim, e, t.x, t.y, DEF.veil.radius, duration);
+  player.skillCooldown = scaledCooldown(sim, DEF.veil.cooldownTicks, 'skill');
   sim.events.push({ type: 'veil', x: t.x, y: t.y, radius: DEF.veil.radius });
 }
 
@@ -143,7 +154,8 @@ function executionStep(sim: Sim): void {
   w.req(e, 'facing').angle = angle;
   const missing = 1 - th.hp / th.max;
   dealDamage(sim, target, {
-    amount: def.damage * (1 + def.lowHpBonus * missing),
+    // Talent "Marque de mort" doubles the wounded-target bonus.
+    amount: def.damage * (1 + def.lowHpBonus * (hasFlag(sim, 'deathMark') ? 2 : 1) * missing),
     source: e,
     byPlayer: true,
     crit: true,
@@ -160,9 +172,38 @@ function executionStep(sim: Sim): void {
   ex.timer = def.hopTicks;
 }
 
+/** Evolution "Danse des lames": the dash leaves a damaging trail. */
+function bladeDanceTrail(sim: Sim): void {
+  const dash = sim.world.req(sim.player, 'dash');
+  if (!hasFlag(sim, 'bladeDance') || dash.active % 2 !== 0) return;
+  const t = sim.world.req(sim.player, 'transform');
+  spawnHitbox(sim, t.x, t.y, {
+    owner: sim.player,
+    team: 'player',
+    shape: { kind: 'circle', radius: 16, offset: 0 },
+    angle: Math.atan2(dash.dirY, dash.dirX),
+    damage: 7,
+    knockback: 60,
+    stagger: 8,
+    delay: 0,
+    ticks: 24,
+    attached: false,
+    canCrit: false,
+    sourceClass: 'shadowBlade',
+  });
+  sim.events.push({ type: 'trail', x: t.x, y: t.y });
+}
+
 export const shadowBladeKit: Kit = {
   update(sim: Sim, input: InputFrame): void {
-    if (!updateDashMotion(sim)) tryStartDash(sim, input);
+    if (updateDashMotion(sim)) bladeDanceTrail(sim);
+    else tryStartDash(sim, input);
+    // Card "Brume tenace": the veil also heals.
+    const p = sim.world.req(sim.player, 'player');
+    if (p.inVeil && hasFlag(sim, 'lingeringVeil')) {
+      const h = sim.world.req(sim.player, 'health');
+      h.hp = Math.min(h.max, h.hp + 3 * sim.dt);
+    }
     runCombo(sim, DEF.combo, DEF.comboResetTicks);
     shuriken(sim);
     veil(sim);
@@ -181,11 +222,14 @@ export const shadowBladeKit: Kit = {
   hud(sim) {
     const p = sim.world.req(sim.player, 'player');
     const dash = sim.world.req(sim.player, 'dash');
+    const member = activeMember(sim);
+    const maxCharges = member ? maxDashCharges(member) : DEF.dash.maxCharges;
+    const recharge = member ? dashRechargeTicks(member) : DEF.dash.rechargeTicks;
     return [
       {
         key: 'dash',
         label: DEF.labels.mobility,
-        fill: dash.charges >= DEF.dash.maxCharges ? 1 : dash.recharge / DEF.dash.rechargeTicks,
+        fill: dash.charges >= maxCharges ? 1 : dash.recharge / recharge,
         ready: dash.charges > 0,
         color: '#7ff6ff',
         count: `${dash.charges}`,

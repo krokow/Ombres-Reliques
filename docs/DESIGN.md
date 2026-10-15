@@ -67,6 +67,19 @@
   systèmes dégâts/équipe s'importent mutuellement : la résolution se fait à l'appel (`kitFor`).
 - **E = interaction** (autel aujourd'hui, coffres/boutique en M6).
 
+## Progression (M5)
+
+- **Pas de pause (choix 1b)** : un roguelike d'action perd son rythme si chaque niveau gèle l'écran.
+  Les choix s'accumulent ; le panneau s'ouvre de lui-même aux moments calmes (salle nettoyée).
+- **Cartes à chaque niveau + talents tous les 3 niveaux (choix 2c)** : les cartes donnent la variété
+  (tirage), les talents la direction du build (choix délibéré dans un arbre).
+- **Évolutions** = cartes rares de niveau 5+ qui changent une compétence (pas juste un chiffre).
+- **Données** : `data/progression.ts` (courbe, cartes, arbres), `data/mods.ts` (modificateurs neutres).
+  Les effets sont des `Mods` additifs + des `FlagId` lus par les kits : ajouter une carte chiffrée ne
+  demande aucun code.
+- **Déterminisme** : offres tirées sur le flux RNG `progress` ; les clics UI deviennent des
+  `ProgressAction` dans l'`InputFrame`.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

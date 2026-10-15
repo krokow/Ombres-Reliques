@@ -50,4 +50,4 @@ docs/       DESIGN.md, ROADMAP.md
 
 Commandes console : `help`, `heal`, `god`, `spawn <ghoul|larva|boneArcher|bloater|cryptomancer> [n]`,
 `elite <ennemi> [enraged|armored|vampiric|volatile]`, `ult`, `status <id> [ticks]`, `killall`, `dash`,
-`seed [valeur]`, `restart`, `ko`, `revive`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`.
+`seed [valeur]`, `restart`, `ko`, `revive`, `xp <n>`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`.

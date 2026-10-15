@@ -13,7 +13,12 @@ export interface Sim {
   readonly player: Entity;
   readonly playerAlive: boolean;
   /** Independent RNG streams (see Rng.fork). */
-  readonly rng: { readonly combat: Rng; readonly spawn: Rng; readonly ai: Rng };
+  readonly rng: {
+    readonly combat: Rng;
+    readonly spawn: Rng;
+    readonly ai: Rng;
+    readonly progress: Rng;
+  };
   readonly events: GameEvent[];
   /** Path field towards the player, refreshed each tick. */
   readonly nav: FlowField;
