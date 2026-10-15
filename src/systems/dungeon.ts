@@ -27,7 +27,6 @@ export interface DungeonState {
   exploredVersion: number;
   stairs: { tx: number; ty: number } | null;
   descendRequested: boolean;
-  altarsUsed: Set<number>;
 }
 
 export function createDungeonState(floor: Floor): DungeonState {
@@ -44,7 +43,6 @@ export function createDungeonState(floor: Floor): DungeonState {
     exploredVersion: 0,
     stairs: null,
     descendRequested: false,
-    altarsUsed: new Set(),
   };
 }
 
@@ -287,7 +285,7 @@ export function breakCrackedWalls(sim: Sim, d: DungeonState): void {
   if (cracked.length === 0) return;
   const s = sim.map.tileSize;
   for (const [, hb, t] of sim.world.query('hitbox', 'transform')) {
-    if (hb.team !== 'player' || hb.delay > 0) continue;
+    if ((hb.team !== 'player' && !hb.creditPlayer) || hb.delay > 0) continue;
     const hit = cracked.find((c) =>
       shapeHitsCircle(hb.shape, t.x, t.y, hb.angle, (c.tx + 0.5) * s, (c.ty + 0.5) * s, s / 2),
     );

@@ -197,14 +197,16 @@ describe('KO & revive', () => {
     place(game, c.x + 16, c.y + 40);
     run(game, 15); // past the KO hit-stop, room entered
     const hpBefore = game.world.req(game.player, 'health').hp;
-    const events = runCollect(game, 1, { interactPressed: true });
+    const opened = runCollect(game, 1, { interactPressed: true });
+    expect(opened.some((e) => e.type === 'altarOpen')).toBe(true);
+    const events = runCollect(game, 1, { ui: { kind: 'altar', option: 'revive' } });
     expect(events.some((e) => e.type === 'revive')).toBe(true);
     expect(game.world.req(game.player, 'party').members[0]!.ko).toBe(false);
     expect(game.world.req(game.player, 'health').hp).toBeLessThan(hpBefore);
     // Single use.
     dealDamage(game, game.player, { ...lethal });
     game.drainEvents();
-    const again = runCollect(game, 1, { interactPressed: true });
+    const again = runCollect(game, 1, { ui: { kind: 'altar', option: 'revive' } });
     expect(again.some((e) => e.type === 'revive')).toBe(false);
   });
 });

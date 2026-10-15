@@ -22,6 +22,7 @@ export const STATUSES = {
   poison: { name: 'Peste', dot: { damage: 3, intervalTicks: 30 }, color: '#9bd46a' },
   burn: { name: 'Brûlure', dot: { damage: 4, intervalTicks: 20 }, color: '#ff8a3d' },
   mark: { name: 'Marqué', damageTakenMult: 1.15, color: '#d38bff' },
+  empowered: { name: 'Galvanisé', damageDealtMult: 1.25, color: '#ff8a3d' },
   taunted: { name: 'Provoqué', damageDealtMult: 0.7, forcesApproach: true, color: '#ffcf5a' },
   invisible: { name: 'Invisible', color: '#7ff6ff' },
   /** Next landed attack is a guaranteed crit (granted when leaving the smoke veil). */

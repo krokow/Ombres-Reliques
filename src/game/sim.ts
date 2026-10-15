@@ -3,6 +3,7 @@ import type { TileMap } from '../core/tilemap';
 import type { GameWorld } from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import type { FlowField } from '../systems/navigation';
+import type { DungeonState } from '../systems/dungeon';
 import type { GameEvent } from './events';
 
 /** What systems get to see of the game. Keeps systems decoupled from the Game class. */
@@ -18,7 +19,11 @@ export interface Sim {
     readonly spawn: Rng;
     readonly ai: Rng;
     readonly progress: Rng;
+    readonly loot: Rng;
   };
+  /** Current floor (1 in the arena). */
+  readonly level: number;
+  readonly dungeon: DungeonState | null;
   readonly events: GameEvent[];
   /** Path field towards the player, refreshed each tick. */
   readonly nav: FlowField;

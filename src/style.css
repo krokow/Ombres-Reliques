@@ -227,3 +227,119 @@ body {
   color: #8a83a3;
   text-align: center;
 }
+
+.loot-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 150px;
+  width: min(460px, calc(100vw - 32px));
+  pointer-events: auto;
+  padding: 10px;
+  background: rgb(12 10 20 / 92%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 6px;
+  font-size: 12px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 50%);
+}
+
+.loot-panel button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 5px 8px;
+  background: #211c33;
+  border: 1px solid #4d4469;
+  border-radius: 4px;
+}
+
+.loot-panel button:hover {
+  border-color: #9b7bff;
+}
+
+.lp-title {
+  margin-bottom: 6px;
+  color: #8a83a3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.lp-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--r, #555);
+  background: rgb(255 255 255 / 4%);
+}
+
+.lp-item strong {
+  color: var(--r, #ccc);
+}
+
+.lp-item small {
+  color: #8a83a3;
+}
+
+.lp-item.empty {
+  color: #6a6480;
+  border-left-color: #333;
+}
+
+.lp-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.lp-col.active {
+  border-color: rgb(255 255 255 / 15%);
+}
+
+.lp-who {
+  font-weight: bold;
+}
+
+.lp-delta {
+  display: flex;
+  flex-direction: column;
+  min-height: 2.5em;
+}
+
+.lp-delta .up {
+  color: #7dffa8;
+}
+
+.lp-delta .down {
+  color: #ff6b8b;
+}
+
+.lp-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.lp-hint {
+  color: #8a83a3;
+}
+
+.lp-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+}

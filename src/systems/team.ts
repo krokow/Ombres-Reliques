@@ -1,19 +1,15 @@
 import { CLASSES } from '../data/classes';
 import { TEAM } from '../data/team';
-import type { Character } from '../ecs/components';
+import type { Character, Party } from '../ecs/components';
 import type { Sim } from '../game/sim';
 import { kitFor } from './kits';
 import { cancelCombo } from './player';
-import { dashRechargeTicks, maxDashCharges } from './progression';
+import { dashRechargeTicks, hasFlag, maxDashCharges } from './progression';
+import { applyStatus } from './statuses';
 
 /** Party helpers. The active character's components live on the player entity. */
 
-export function party(sim: Sim): {
-  members: Character[];
-  active: number;
-  switchCooldown: number;
-  kills: number;
-} {
+export function party(sim: Sim): Party {
   return sim.world.req(sim.player, 'party');
 }
 
@@ -74,12 +70,16 @@ export function switchTo(sim: Sim, index: number, forced = false): boolean {
   leaving.state.blockTicks = -1;
   leaving.state.execution = null;
   leaving.statuses.list = [];
-  leaving.lockout = forced ? 0 : TEAM.reentryLockoutTicks;
+  // Relic "Sablier fêlé": faster rotations.
+  const hourglass = hasFlag(sim, 'brokenHourglass') ? 0.6 : 1;
+  leaving.lockout = forced ? 0 : Math.round(TEAM.reentryLockoutTicks * hourglass);
   const dash = w.req(sim.player, 'dash');
   dash.active = 0;
 
   install(sim, index);
-  p.switchCooldown = TEAM.switchCooldownTicks;
+  p.switchCooldown = Math.round(TEAM.switchCooldownTicks * hourglass);
+  // Relic "Totem du relais": arriving fired up.
+  if (hasFlag(sim, 'relayTotem')) applyStatus(sim, sim.player, 'empowered', 120);
   const h = w.req(sim.player, 'health');
   h.invuln = Math.max(h.invuln, forced ? TEAM.koSwitchInvulnTicks : TEAM.switchInvulnTicks);
   h.stagger = 0;
@@ -146,6 +146,15 @@ export function tickParty(sim: Sim): void {
 export function handleCharacterDown(sim: Sim): boolean {
   const p = party(sim);
   const down = activeMember(sim);
+  // Relic "Plume de phénix": the first KO of each floor doesn't happen.
+  if (hasFlag(sim, 'phoenixFeather') && !p.phoenixUsed) {
+    p.phoenixUsed = true;
+    down.health.hp = Math.round(down.health.max * 0.3);
+    down.health.invuln = TEAM.koSwitchInvulnTicks;
+    const pt = sim.world.req(sim.player, 'transform');
+    sim.events.push({ type: 'revive', classIds: [down.classId], x: pt.x, y: pt.y });
+    return true;
+  }
   down.ko = true;
   down.health.hp = 0;
   down.health.shield = 0;

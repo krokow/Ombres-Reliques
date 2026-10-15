@@ -4,6 +4,8 @@ import type { StatusId } from '../data/statuses';
 import type { BiomeId } from '../data/biomes';
 import type { RoomType } from '../dungeon/floor';
 import type { ClassId } from '../data/classes';
+import type { ConsumableId, Rarity, RelicId } from '../data/items';
+import type { AltarOption } from '../systems/loot';
 
 /**
  * One-way notifications from the simulation to presentation (VFX, audio, HUD).
@@ -85,4 +87,12 @@ export type GameEvent =
   | { type: 'levelUp'; classId: ClassId; level: number; x: number; y: number }
   | { type: 'cardTaken'; classId: ClassId; card: string }
   | { type: 'talentTaken'; classId: ClassId; node: string }
-  | { type: 'trail'; x: number; y: number };
+  | { type: 'trail'; x: number; y: number }
+  | { type: 'pickup'; kind: 'gold' | 'key' | 'consumable'; x: number; y: number; label: string }
+  | { type: 'relic'; id: RelicId; x: number; y: number }
+  | { type: 'chestOpen'; x: number; y: number }
+  | { type: 'purchase'; x: number; y: number; price: number }
+  | { type: 'altarOpen'; altar: Entity; options: AltarOption[] }
+  | { type: 'altarUsed'; option: AltarOption; x: number; y: number }
+  | { type: 'equip'; classId: ClassId; name: string; rarity: Rarity; x: number; y: number }
+  | { type: 'consumable'; id: ConsumableId; x: number; y: number };

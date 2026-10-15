@@ -2,6 +2,7 @@ import { Rng } from '../core/rng';
 import type { Entity } from '../ecs/world';
 import { BIOMES } from '../data/biomes';
 import { CLASSES } from '../data/classes';
+import { CONSUMABLES, RARITIES, RELICS, type RelicDef } from '../data/items';
 import { FEEL } from '../data/combat';
 import type { RoomType } from '../dungeon/floor';
 import { ENEMIES, isEnemyId } from '../data/enemies';
@@ -489,6 +490,85 @@ export class Effects {
       }
       case 'cardTaken':
       case 'talentTaken':
+        break;
+      case 'pickup':
+        if (ev.label)
+          this.text(
+            ev.x,
+            ev.y - 10,
+            ev.label,
+            ev.kind === 'gold' ? '#ffd34d' : '#e8e4f0',
+            ev.kind === 'gold' ? 9 : 10,
+          );
+        break;
+      case 'chestOpen':
+        camera.addTrauma(0.2);
+        this.burst(ev.x, ev.y, 30, '#ffd34d', 200, 0.7, -Math.PI / 2, Math.PI);
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 40,
+          color: '#ffd34d',
+          life: 0.4,
+          maxLife: 0.4,
+        });
+        break;
+      case 'purchase':
+        this.burst(ev.x, ev.y, 12, '#ffd34d', 120, 0.5, -Math.PI / 2, Math.PI);
+        this.text(ev.x, ev.y - 24, `−${ev.price} or`, '#ffd34d', 10);
+        break;
+      case 'relic': {
+        const r: RelicDef = RELICS[ev.id];
+        this.banner = { text: r.name, life: 2, maxLife: 2 };
+        this.rings.push({ x: ev.x, y: ev.y, radius: 50, color: r.color, life: 0.6, maxLife: 0.6 });
+        this.burst(ev.x, ev.y, 24, r.color, 180, 0.7, 0, Math.PI * 2);
+        break;
+      }
+      case 'altarUsed':
+        camera.addTrauma(0.3);
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 70,
+          color: '#c77dff',
+          life: 0.6,
+          maxLife: 0.6,
+        });
+        this.burst(ev.x, ev.y, 30, '#c77dff', 160, 0.8, -Math.PI / 2, Math.PI);
+        break;
+      case 'equip':
+        this.text(
+          ev.x,
+          ev.y - 20,
+          `${CLASSES[ev.classId].name} : ${ev.name}`,
+          RARITIES[ev.rarity].color,
+          10,
+        );
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 24,
+          color: RARITIES[ev.rarity].color,
+          life: 0.35,
+          maxLife: 0.35,
+        });
+        break;
+      case 'consumable':
+        if (ev.id === 'potion') {
+          this.burst(ev.x, ev.y, 18, '#ff4d6d', 90, 0.7, -Math.PI / 2, Math.PI * 0.8);
+        } else if (ev.id === 'thunder') {
+          camera.addTrauma(0.5);
+          this.rings.push({
+            x: ev.x,
+            y: ev.y,
+            radius: CONSUMABLES.thunder.radius,
+            color: '#ffe14d',
+            life: 0.4,
+            maxLife: 0.4,
+          });
+          this.hurtFlash = 0;
+          this.burst(ev.x, ev.y, 40, '#fff6b0', 500, 0.35, 0, Math.PI * 2, true);
+        }
         break;
       case 'trail':
         this.burst(ev.x, ev.y, 3, CLASSES.shadowBlade.palette.trim, 40, 0.4, 0, Math.PI * 2, true);

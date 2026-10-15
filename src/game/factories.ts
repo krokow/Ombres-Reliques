@@ -1,6 +1,7 @@
 import { CLASSES, SHADOW_BLADE, type ClassId } from '../data/classes';
 import type { StatusApplication } from '../data/statuses';
 import { emptyMods } from '../data/mods';
+import { LOOT } from '../data/items';
 import { DUNGEON } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
@@ -47,6 +48,8 @@ function newCharacter(classId: ClassId): Character {
       talents: [],
       cards: {},
     },
+    equipment: { weapon: null, armor: null, relic: null },
+    scars: 0,
     mods: emptyMods(),
     flags: new Set(),
   };
@@ -80,7 +83,17 @@ export function spawnPlayer(sim: Sim, party: readonly ClassId[], x: number, y: n
     switchSlot: -1,
     switchTicks: 0,
   });
-  w.add(e, 'party', { members, active: 0, switchCooldown: 0, kills: 0 });
+  w.add(e, 'party', {
+    members,
+    active: 0,
+    switchCooldown: 0,
+    kills: 0,
+    gold: 0,
+    keys: LOOT.startingKeys,
+    quick: Array.from({ length: LOOT.quickSlots }, () => null),
+    relics: [],
+    phoenixUsed: false,
+  });
   w.add(e, 'player', first.state);
   w.add(e, 'health', first.health);
   w.add(e, 'dash', first.dash);

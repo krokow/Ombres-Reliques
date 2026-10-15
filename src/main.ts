@@ -26,6 +26,7 @@ import { Renderer } from './render/renderer';
 import { CommandRegistry } from './ui/commands';
 import { DebugOverlay } from './ui/debugOverlay';
 import { ProgressPanel } from './ui/progressPanel';
+import { AltarPanel, ComparePanel } from './ui/lootPanels';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const uiRoot = document.querySelector<HTMLElement>('#ui');
@@ -50,6 +51,8 @@ const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
 const progressPanel = new ProgressPanel(uiRoot);
+const comparePanel = new ComparePanel(uiRoot);
+const altarPanel = new AltarPanel(uiRoot);
 let anim = new Animator();
 const commands = new CommandRegistry();
 const debug = new DebugOverlay(uiRoot, commands);
@@ -256,7 +259,8 @@ function sampleInput(): InputFrame {
         : input.consumePressed('slot3')
           ? 2
           : -1,
-    progress: progressPanel.takeAction(),
+    ui: progressPanel.takeAction() ?? comparePanel.takeAction() ?? altarPanel.takeAction(),
+    useSlot: input.consumePressed('quick1') ? 0 : input.consumePressed('quick2') ? 1 : -1,
   };
 }
 
@@ -304,6 +308,7 @@ runLoop(clock, {
           .members.some((m) => m.progress.pendingCards > 0);
         if (pending) progressPanel.setOpen(true, game);
       }
+      if (ev.type === 'altarOpen') altarPanel.show(ev.altar, ev.options);
       fx.handle(ev, camera);
       anim.onEvent(ev, game);
       sfx.onEvent(ev);
@@ -327,6 +332,8 @@ runLoop(clock, {
     renderer.screenSpace();
     hud.draw(renderer.ctx, renderer.width, renderer.height, game, fx, dt);
     progressPanel.update(game);
+    comparePanel.update(game);
+    altarPanel.update(game);
     minimap.draw(renderer.ctx, renderer.width, renderer.height, game, performance.now() / 1000);
 
     debug.setLines([

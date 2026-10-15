@@ -7,7 +7,7 @@ import type { Sim } from '../game/sim';
 import { isBehind, rollDamage, shapeHitsCircle } from './combatMath';
 import { dealDamage } from './damage';
 import { applyStatus, hasStatus, removeStatus } from './statuses';
-import { memberOf } from './progression';
+import { hasFlag, memberOf } from './progression';
 
 /** Moves attached hitboxes, resolves overlaps with hurtboxes, expires them. */
 export function resolveHitboxes(sim: Sim): void {
@@ -104,6 +104,9 @@ function applyHit(sim: Sim, hb: Hitbox, ox: number, oy: number, target: Entity):
   if (wasSlowed && member?.flags.has('shatter') && hb.statuses.some((st) => st.id === 'slow')) {
     applyStatus(sim, target, 'stun', 45, sim.player);
   }
+  // Relic "Œil du chasseur": marked targets take more from the party.
+  if (hb.team === 'player' && hasFlag(sim, 'huntersEye') && hasStatus(w, target, 'mark'))
+    base *= 1.2;
   const roll = rollDamage(base, stats, backstab, sim.rng.combat, ambush);
 
   let dx = tt.x - ox;

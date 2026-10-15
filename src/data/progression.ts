@@ -29,6 +29,9 @@ export interface Mods {
   extraMeteors: number;
   maxManaFlat: number;
   manaRegenPct: number;
+  /** Fraction of incoming damage removed (capped). */
+  damageReduction: number;
+  goldPct: number;
 }
 
 /** Behaviour switches unlocked by evolution cards and talent capstones. */
@@ -51,7 +54,17 @@ export type FlagId =
   | 'shatter'
   | 'frostBlink'
   | 'meteorFire'
-  | 'twinBolt';
+  | 'twinBolt'
+  // Global relics / curses (M6)
+  | 'shadowCloak'
+  | 'brokenHourglass'
+  | 'relayTotem'
+  | 'sharedHeart'
+  | 'bloodstone'
+  | 'huntersEye'
+  | 'lantern'
+  | 'phoenixFeather'
+  | 'hunted';
 
 export interface CardDef {
   id: string;

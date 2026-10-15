@@ -6,6 +6,10 @@ import { ARCANIST, CLASSES, GUARDIAN, SHADOW_BLADE } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef } from '../data/enemies';
 import { STATUSES } from '../data/statuses';
+import { CONSUMABLES, RARITIES, RELICS } from '../data/items';
+import { KEY_BINDINGS } from '../data/controls';
+import { keyLabel } from '../input/keyLabels';
+import { nearestInspectable, nearestInteractable } from '../systems/loot';
 import type { RenderKind } from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import type { Game } from '../game/game';
@@ -109,7 +113,7 @@ export class Renderer {
 
     ctx.drawImage(this.mapCanvas(game.map, pal), 0, 0);
     this.drawDynamicTiles(game, pal);
-    this.drawRoomProps(game);
+    this.drawLoot(game, alpha);
     for (const [, z, t] of w.query('zone', 'transform')) {
       if (z.kind === 'fire') drawFire(ctx, t.x, t.y, z.radius, z.ticks / z.maxTicks, this.time);
     }
@@ -171,6 +175,7 @@ export class Renderer {
     this.drawFog(game, camera, pal);
     this.drawEnemyBars(game, alpha);
     if (opts.showHitboxes) this.drawHitboxes(game);
+    this.drawPrompt(game);
     fx.drawTexts(ctx);
     ctx.restore();
   }
@@ -643,42 +648,163 @@ export class Renderer {
     }
   }
 
-  /** Placeholder props for special rooms until their content lands (M6). */
-  private drawRoomProps(game: Game): void {
-    const d = game.dungeon;
-    if (!d) return;
+  /** Chests, shop pedestals, altars, then everything lying on the floor. */
+  private drawLoot(game: Game, alpha: number): void {
     const ctx = this.ctx;
-    const s = game.map.tileSize;
-    for (const room of d.floor.rooms) {
-      const c = game.map.tileCenter(room.center.tx, room.center.ty);
-      const x = c.x + s / 2;
-      const y = c.y + s / 2;
-      if (room.type === 'treasure' || room.type === 'secret') {
-        ctx.fillStyle = '#6b4a24';
-        ctx.fillRect(x - 12, y - 8, 24, 16);
-        ctx.fillStyle = '#e0b84d';
-        ctx.fillRect(x - 12, y - 2, 24, 3);
-        ctx.fillRect(x - 2, y - 4, 4, 6);
-      } else if (room.type === 'shop') {
-        for (let i = -1; i <= 1; i++) {
-          ctx.fillStyle = '#3a3350';
-          ctx.fillRect(x + i * 30 - 8, y - 6, 16, 14);
-          ctx.fillStyle = ['#6fd0ff', '#ffd34d', '#ff6b8b'][i + 1] ?? '#fff';
-          ctx.beginPath();
-          ctx.arc(x + i * 30, y - 12 + Math.sin(this.time * 3 + i) * 2, 4, 0, Math.PI * 2);
-          ctx.fill();
+    const w = game.world;
+    for (const [, it, t] of w.query('interactable', 'transform')) {
+      const { x, y } = t;
+      if (it.kind === 'chest') {
+        ctx.fillStyle = it.opened ? '#3a2a18' : '#6b4a24';
+        ctx.fillRect(x - 13, y - 8, 26, 16);
+        ctx.fillStyle = it.locked ? '#e0b84d' : '#a8865a';
+        ctx.fillRect(x - 13, y - 2, 26, 3);
+        if (!it.opened) {
+          // Lid, with a padlock when it needs a key.
+          ctx.fillStyle = '#7a5630';
+          ctx.fillRect(x - 13, y - 12, 26, 5);
+          if (it.locked) {
+            ctx.fillStyle = '#ffd34d';
+            ctx.fillRect(x - 3, y - 4, 6, 6);
+          }
         }
-      } else if (room.type === 'altar') {
+      } else if (it.kind === 'shop') {
+        ctx.fillStyle = '#3a3350';
+        ctx.fillRect(x - 10, y - 4, 20, 12);
+        if (!it.sold) {
+          const bob = Math.sin(this.time * 3 + x) * 2;
+          const o = it.offer;
+          const color =
+            o.type === 'item'
+              ? RARITIES[o.item.rarity].color
+              : o.type === 'consumable'
+                ? CONSUMABLES[o.id].color
+                : o.type === 'relic'
+                  ? RELICS[o.id].color
+                  : '#ffd34d';
+          this.drawLootIcon(x, y - 14 + bob, o.type === 'item' ? o.item.slot : o.type, color);
+          ctx.font = 'bold 9px ui-monospace, Menlo, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#ffd34d';
+          ctx.fillText(`${it.price}`, x, y + 18);
+        }
+      } else {
         ctx.fillStyle = '#4a3a5e';
         ctx.fillRect(x - 16, y - 6, 32, 14);
-        ctx.fillStyle = '#c77dff';
-        ctx.globalAlpha = 0.5 + Math.sin(this.time * 2) * 0.3;
+        ctx.fillStyle = it.used ? '#3a3350' : '#c77dff';
+        ctx.globalAlpha = it.used ? 0.6 : 0.5 + Math.sin(this.time * 2) * 0.3;
         ctx.beginPath();
         ctx.arc(x, y - 14, 6, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
     }
+    for (const [, pk, t] of w.query('pickup', 'transform')) {
+      const p = interp(t, alpha);
+      const bob = Math.sin(this.time * 4 + p.x * 0.1) * 1.5;
+      if (pk.kind === 'gold') {
+        ctx.fillStyle = '#ffd34d';
+        ctx.beginPath();
+        ctx.ellipse(
+          p.x,
+          p.y + bob,
+          3.5 * Math.abs(Math.cos(this.time * 6 + p.x)) + 0.8,
+          3.5,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      } else if (pk.kind === 'key') {
+        this.drawLootIcon(p.x, p.y + bob, 'key', '#ffd34d');
+      } else if (pk.kind === 'consumable') {
+        this.drawLootIcon(p.x, p.y + bob, 'consumable', CONSUMABLES[pk.id].color);
+      } else {
+        const color = pk.kind === 'item' ? RARITIES[pk.item.rarity].color : RELICS[pk.id].color;
+        // Light beam: rarity readable from across the room.
+        const g = ctx.createLinearGradient(p.x, p.y - 40, p.x, p.y);
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(1, color);
+        ctx.globalAlpha = 0.35 + Math.sin(this.time * 3) * 0.1;
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - 3, p.y - 40, 6, 40);
+        ctx.globalAlpha = 1;
+        this.drawLootIcon(p.x, p.y + bob, pk.kind === 'item' ? pk.item.slot : 'relic', color);
+      }
+    }
+  }
+
+  private drawLootIcon(x: number, y: number, kind: string, color: string): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#0b0910';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (kind === 'weapon') {
+      ctx.rotate(-0.8);
+      ctx.rect(-1.5, -9, 3, 14);
+      ctx.rect(-4, 3, 8, 2);
+    } else if (kind === 'armor') {
+      ctx.moveTo(-7, -6);
+      ctx.lineTo(7, -6);
+      ctx.lineTo(5, 7);
+      ctx.lineTo(-5, 7);
+      ctx.closePath();
+    } else if (kind === 'key') {
+      ctx.arc(-3, 0, 3, 0, Math.PI * 2);
+      ctx.rect(0, -1, 8, 2);
+    } else if (kind === 'consumable') {
+      ctx.arc(0, 2, 5, 0, Math.PI * 2);
+      ctx.rect(-2, -6, 4, 5);
+    } else {
+      // relic / equipment relic: a gem
+      ctx.moveTo(0, -7);
+      ctx.lineTo(6, 0);
+      ctx.lineTo(0, 7);
+      ctx.lineTo(-6, 0);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** "E : …" prompt over the nearest interactable. */
+  private drawPrompt(game: Game): void {
+    const e = nearestInteractable(game);
+    const near = nearestInspectable(game);
+    const ctx = this.ctx;
+    const key = keyLabel(KEY_BINDINGS.interact[0]);
+    let text = '';
+    let x = 0;
+    let y = 0;
+    if (near !== null && game.world.get(near, 'pickup')?.kind === 'relic') {
+      const t = game.world.req(near, 'transform');
+      text = `${key} : prendre`;
+      x = t.x;
+      y = t.y - 22;
+    } else if (e !== null) {
+      const it = game.world.req(e, 'interactable');
+      const t = game.world.req(e, 'transform');
+      x = t.x;
+      y = t.y - 30;
+      text =
+        it.kind === 'chest'
+          ? `${key} : ouvrir${it.locked ? ' (1 clé)' : ''}`
+          : it.kind === 'shop'
+            ? `${key} : acheter (${it.price} or)`
+            : `${key} : prier`;
+    }
+    if (!text) return;
+    ctx.font = 'bold 10px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    const w = ctx.measureText(text).width + 10;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(x - w / 2, y - 8, w, 15);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, x, y + 3);
   }
 
   /** Unexplored tiles are hidden (fog of war). */

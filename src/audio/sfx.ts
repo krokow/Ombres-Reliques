@@ -35,7 +35,13 @@ type SoundName =
   | 'fire'
   | 'bolt'
   | 'levelUp'
-  | 'pick';
+  | 'pick'
+  | 'coin'
+  | 'chest'
+  | 'buy'
+  | 'relicGet'
+  | 'potion'
+  | 'thunder';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -115,7 +121,21 @@ export class Sfx {
         return this.play('levelUp');
       case 'cardTaken':
       case 'talentTaken':
+      case 'equip':
         return this.play('pick');
+      case 'pickup':
+        return this.play(ev.kind === 'gold' ? 'coin' : 'pick');
+      case 'chestOpen':
+        return this.play('chest');
+      case 'purchase':
+        return this.play('buy');
+      case 'relic':
+      case 'altarUsed':
+        return this.play('relicGet');
+      case 'consumable':
+        if (ev.id === 'potion') return this.play('potion');
+        if (ev.id === 'thunder') return this.play('thunder');
+        return;
       case 'ko':
         return this.play('ko');
       case 'revive':
@@ -274,6 +294,31 @@ export class Sfx {
         break;
       case 'pick':
         this.tone(t, 'sine', 660, 990, 0.15, 0.2);
+        break;
+      case 'coin':
+        this.tone(t, 'square', 1320, 1760, 0.05, 0.06);
+        break;
+      case 'chest':
+        this.tone(t, 'triangle', 392, 392, 0.1, 0.2);
+        this.tone(t + 0.1, 'triangle', 523, 523, 0.1, 0.2);
+        this.tone(t + 0.2, 'triangle', 659, 659, 0.1, 0.2);
+        this.tone(t + 0.3, 'triangle', 784, 784, 0.3, 0.2);
+        break;
+      case 'buy':
+        this.tone(t, 'square', 988, 988, 0.06, 0.1);
+        this.tone(t + 0.07, 'square', 1319, 1319, 0.12, 0.1);
+        break;
+      case 'relicGet':
+        this.tone(t, 'sine', 330, 660, 0.5, 0.2);
+        this.tone(t + 0.1, 'sine', 495, 990, 0.5, 0.15);
+        break;
+      case 'potion':
+        this.noiseSweep(t, 0.3, 400, 1600, 0.25, 'bandpass');
+        this.tone(t + 0.1, 'sine', 600, 900, 0.2, 0.15);
+        break;
+      case 'thunder':
+        this.noiseSweep(t, 0.7, 4000, 150, 0.8, 'lowpass');
+        this.tone(t, 'sawtooth', 120, 40, 0.6, 0.4);
         break;
       case 'tick':
         this.tone(t, 'sine', 300, 250, 0.04, 0.08);

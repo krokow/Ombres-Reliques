@@ -5,6 +5,7 @@ import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
 import { TEAM } from '../data/team';
 import { xpToNext } from '../data/progression';
+import { CONSUMABLES, RELICS, type RelicDef } from '../data/items';
 import type { Game } from '../game/game';
 import { keyLabel } from '../input/keyLabels';
 import { kitFor } from '../systems/kits';
@@ -131,6 +132,33 @@ export class Hud {
       ctx.fillText(sl.label, sx + slot / 2, sy + slot + 7);
     });
 
+    // Quick consumables (F / G), right of the skill slots.
+    const qx0 = sx0 + slots.length * (slot + gap) + 14;
+    party.quick.forEach((q, i) => {
+      const qx = qx0 + i * (slot + gap);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(qx, sy, slot, slot);
+      ctx.strokeStyle = 'rgba(255,211,77,0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(qx + 0.5, sy + 0.5, slot - 1, slot - 1);
+      ctx.textAlign = 'center';
+      if (q) {
+        ctx.fillStyle = CONSUMABLES[q.id].color;
+        ctx.beginPath();
+        ctx.arc(qx + slot / 2, sy + slot / 2 + 2, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = PALETTE.hudText;
+        ctx.font = `bold 9px ${FONT}`;
+        ctx.fillText(`×${q.count}`, qx + slot - 8, sy + slot - 6);
+      }
+      ctx.fillStyle = PALETTE.hudText;
+      ctx.font = `bold 10px ${FONT}`;
+      ctx.fillText(keyLabel(KEY_BINDINGS[i === 0 ? 'quick1' : 'quick2'][0]), qx + 7, sy + 8);
+      ctx.fillStyle = PALETTE.hudDim;
+      ctx.font = `8px ${FONT}`;
+      ctx.fillText(q ? CONSUMABLES[q.id].short : '—', qx + slot / 2, sy + slot + 7);
+    });
+
     this.drawParty(ctx, height, game);
 
     // --- Floor / kills (or arena wave).
@@ -142,6 +170,32 @@ export class Hud {
       ? `Étage ${game.level} · ${BIOMES[game.biome].name}`
       : `Vague ${game.waves.wave}`;
     ctx.fillText(`${where}   Éliminations ${party.kills}`, width - 14, 12);
+    // Gold, keys and party relics (minimap sits below: keep this compact).
+    ctx.font = `bold 12px ${FONT}`;
+    ctx.fillStyle = '#ffd34d';
+    ctx.fillText(
+      `${party.gold} or   ${party.keys} clé${party.keys > 1 ? 's' : ''}`,
+      width - 14,
+      game.dungeon ? 214 : 30,
+    );
+    party.relics.forEach((id, i) => {
+      const r: RelicDef = RELICS[id];
+      const rx = width - 20 - i * 16;
+      const ry = game.dungeon ? 236 : 52;
+      ctx.fillStyle = r.color;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry - 6);
+      ctx.lineTo(rx + 6, ry);
+      ctx.lineTo(rx, ry + 6);
+      ctx.lineTo(rx - 6, ry);
+      ctx.closePath();
+      ctx.fill();
+      if (r.curse) {
+        ctx.strokeStyle = '#ff4d6d';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    });
 
     // --- Champion (mini-boss / boss) HP bar.
     const champ = w.query('champion', 'health')[0];

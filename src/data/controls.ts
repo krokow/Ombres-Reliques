@@ -15,6 +15,8 @@ export const KEY_BINDINGS = {
   /** Reserved for interactions (chests, altars, shop) in M6. */
   interact: ['KeyE'],
   ultimate: ['KeyR'],
+  quick1: ['KeyF'],
+  quick2: ['KeyG'],
   slot1: ['Digit1', 'Numpad1'],
   slot2: ['Digit2', 'Numpad2'],
   slot3: ['Digit3', 'Numpad3'],

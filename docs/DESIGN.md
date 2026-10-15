@@ -80,6 +80,17 @@
 - **Déterminisme** : offres tirées sur le flux RNG `progress` ; les clics UI deviennent des
   `ProgressAction` dans l'`InputFrame`.
 
+## Loot (M6)
+
+- **Comparaison passive (choix 1b)** : pas d'inventaire à gérer, la décision se prend sur place, au
+  calme ou en courant ; s'éloigner = laisser l'objet. L'ancien objet retombe : rien n'est perdu.
+- **Équiper n'importe quel perso** : l'objet est lié à celui qui le porte, mais on choisit qui.
+- **Consommables sur 2 emplacements (choix 2a)**, la bombe est neutre (risque/récompense, casse les secrets).
+- **Équipement = modificateurs** agrégés comme les cartes et talents (`recompute`), donc aucune règle
+  spéciale côté combat ; les reliques d'équipe ajoutent leurs `Mods`/`FlagId` à chaque membre.
+- **Malédictions = reliques négatives** : même système, affichées avec un liseré rouge.
+- Clé de départ : 1, pour que le premier coffre ne soit jamais frustrant.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

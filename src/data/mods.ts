@@ -25,5 +25,7 @@ export function emptyMods(): Mods {
     extraMeteors: 0,
     maxManaFlat: 0,
     manaRegenPct: 0,
+    damageReduction: 0,
+    goldPct: 0,
   };
 }

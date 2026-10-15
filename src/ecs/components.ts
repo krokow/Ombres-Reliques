@@ -3,6 +3,7 @@ import type { EliteModifierId } from '../data/elites';
 import type { EnemyId } from '../data/enemies';
 import type { StatusApplication, StatusId } from '../data/statuses';
 import type { FlagId, Mods } from '../data/progression';
+import type { ConsumableId, ItemSlot, Rarity, RelicId } from '../data/items';
 import type { Entity, World } from './world';
 
 /** Position with the previous tick's value kept for render interpolation. */
@@ -129,6 +130,48 @@ export interface PlayerState {
   meteors: MeteorState | null;
 }
 
+/** A generated piece of equipment. */
+export interface Item {
+  slot: ItemSlot;
+  name: string;
+  rarity: Rarity;
+  /** Item level (floor it dropped on). */
+  level: number;
+  /** Implicit + affix stats, already rolled. */
+  stats: { stat: keyof Mods; value: number }[];
+}
+
+export interface Equipment {
+  weapon: Item | null;
+  armor: Item | null;
+  relic: Item | null;
+}
+
+export interface QuickSlot {
+  id: ConsumableId;
+  count: number;
+}
+
+/** Something lying on the floor. Gold, keys and consumables are auto-collected. */
+export type Pickup =
+  | { kind: 'gold'; amount: number; age: number }
+  | { kind: 'key'; age: number }
+  | { kind: 'consumable'; id: ConsumableId; age: number }
+  | { kind: 'item'; item: Item; age: number }
+  | { kind: 'relic'; id: RelicId; age: number };
+
+export type ShopOffer =
+  | { type: 'item'; item: Item }
+  | { type: 'consumable'; id: ConsumableId }
+  | { type: 'relic'; id: RelicId }
+  | { type: 'key' };
+
+/** Props the player uses with E. */
+export type Interactable =
+  | { kind: 'chest'; locked: boolean; opened: boolean; room: number }
+  | { kind: 'shop'; offer: ShopOffer; price: number; sold: boolean; room: number }
+  | { kind: 'altar'; used: boolean; room: number };
+
 /** Run progression of one character (M5). */
 export interface Progress {
   level: number;
@@ -155,7 +198,10 @@ export interface Character {
   combo: ComboState;
   statuses: Statuses;
   progress: Progress;
-  /** Aggregated card + talent modifiers (recomputed when progress changes). */
+  equipment: Equipment;
+  /** Altar sacrifices taken (each removes max HP for the run). */
+  scars: number;
+  /** Aggregated cards, talents, equipment and party relics (recomputed on change). */
   mods: Mods;
   flags: Set<FlagId>;
 }
@@ -166,6 +212,13 @@ export interface Party {
   /** Global switch cooldown. */
   switchCooldown: number;
   kills: number;
+  gold: number;
+  keys: number;
+  quick: (QuickSlot | null)[];
+  /** Party-wide relics and curses. */
+  relics: RelicId[];
+  /** Phoenix feather already used on this floor. */
+  phoenixUsed: boolean;
 }
 
 export type EnemyPhase =
@@ -307,6 +360,8 @@ export interface Components {
   minion: Minion;
   encounter: Encounter;
   champion: Champion;
+  pickup: Pickup;
+  interactable: Interactable;
   statuses: Statuses;
   zone: Zone;
   hitbox: Hitbox;

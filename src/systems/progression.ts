@@ -12,6 +12,7 @@ import {
   type Mods,
 } from '../data/progression';
 import { enemyDef } from '../data/enemies';
+import { LOOT, RELICS, type RelicDef, type RelicId } from '../data/items';
 import type { Character } from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import type { Sim } from '../game/sim';
@@ -69,8 +70,11 @@ export function dashRechargeTicks(m: Character): number {
   );
 }
 
-/** Rebuilds a character's modifiers and re-derives max HP (keeping missing HP constant). */
-export function recompute(m: Character): void {
+/**
+ * Rebuilds a character's modifiers (cards, talents, equipment, party relics,
+ * altar scars) and re-derives max HP, keeping the missing HP constant.
+ */
+export function recompute(m: Character, relics: readonly RelicId[] = []): void {
   const mods = emptyMods();
   const flags = new Set<FlagId>();
   const add = (partial: Partial<Mods> | undefined, times: number): void => {
@@ -87,9 +91,18 @@ export function recompute(m: Character): void {
     add(t?.node.mods, 1);
     if (t?.node.flag) flags.add(t.node.flag);
   }
+  for (const item of [m.equipment.weapon, m.equipment.armor, m.equipment.relic]) {
+    for (const st of item?.stats ?? []) mods[st.stat] += st.value;
+  }
+  for (const id of relics) {
+    const r: RelicDef = RELICS[id];
+    add(r.mods, 1);
+    if (r.flag) flags.add(r.flag);
+  }
+  mods.maxHpPct -= LOOT.altar.sacrificeMaxHpPct * m.scars;
   m.mods = mods;
   m.flags = flags;
-  const newMax = Math.round(CLASSES[m.classId].maxHp * (1 + mods.maxHpPct));
+  const newMax = Math.max(1, Math.round(CLASSES[m.classId].maxHp * (1 + mods.maxHpPct)));
   if (newMax !== m.health.max) {
     if (!m.ko) m.health.hp = Math.max(1, m.health.hp + newMax - m.health.max);
     m.health.max = newMax;
@@ -163,6 +176,16 @@ export function canTakeTalent(m: Character, nodeId: string): boolean {
   return prev !== undefined && m.progress.talents.includes(prev.id);
 }
 
+/** Recomputes every party member (after relic or curse changes). */
+export function recomputeAll(sim: Sim): void {
+  const party = sim.world.get(sim.player, 'party');
+  for (const m of party?.members ?? []) recompute(m, party?.relics ?? []);
+}
+
+function relicsOf(sim: Sim): readonly RelicId[] {
+  return sim.world.get(sim.player, 'party')?.relics ?? [];
+}
+
 /** Applies a UI command; invalid commands are ignored. */
 export function applyProgressAction(sim: Sim, action: ProgressAction): boolean {
   const m = members(sim)[action.member];
@@ -174,7 +197,7 @@ export function applyProgressAction(sim: Sim, action: ProgressAction): boolean {
     p.cards[id] = (p.cards[id] ?? 0) + 1;
     p.pendingCards--;
     p.offer = null;
-    recompute(m);
+    recompute(m, relicsOf(sim));
     sim.events.push({ type: 'cardTaken', classId: m.classId, card: id });
     ensureOffer(sim, m);
     return true;
@@ -182,7 +205,7 @@ export function applyProgressAction(sim: Sim, action: ProgressAction): boolean {
   if (!canTakeTalent(m, action.node)) return false;
   p.talents.push(action.node);
   p.talentPoints--;
-  recompute(m);
+  recompute(m, relicsOf(sim));
   sim.events.push({ type: 'talentTaken', classId: m.classId, node: action.node });
   return true;
 }

@@ -6,7 +6,8 @@ import { enemyDef } from '../data/enemies';
 import type { Entity } from '../ecs/world';
 import { spawnExplosion } from '../game/factories';
 import type { Sim } from '../game/sim';
-import { applyStatus, damageDealtMultiplier, damageTakenMultiplier } from './statuses';
+import { applyStatus, damageDealtMultiplier, damageTakenMultiplier, hasStatus } from './statuses';
+import { dropLoot } from './loot';
 import { handleCharacterDown } from './team';
 import { enemiesAround } from './player';
 import { activeMods, awardKillXp, hasFlag, maxDashCharges } from './progression';
@@ -130,7 +131,15 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const targetIsPlayer = target === sim.player;
 
   let factor = damageTakenMultiplier(w, target);
-  if (spec.byPlayer && !targetIsPlayer) factor *= 1 + activeMods(sim).damagePct;
+  if (spec.byPlayer && !targetIsPlayer) {
+    factor *= 1 + activeMods(sim).damagePct;
+    // Relic "Cape d'ombre": striking from invisibility hurts more.
+    if (hasFlag(sim, 'shadowCloak') && hasStatus(w, sim.player, 'invisible')) factor *= 1.3;
+  }
+  if (targetIsPlayer) {
+    factor *= 1 - Math.min(0.6, activeMods(sim).damageReduction);
+    if (hasFlag(sim, 'hunted')) factor *= 1.2;
+  }
   if (spec.source !== null && w.isAlive(spec.source))
     factor *= damageDealtMultiplier(w, spec.source);
   let knockback = spec.knockback;
@@ -229,7 +238,10 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
       spawnExplosion(sim, target, tt.x, tt.y, { ...ex, creditPlayer: byPlayer });
     }
   }
-  if (byPlayer) awardKillXp(sim, target);
+  if (byPlayer) {
+    awardKillXp(sim, target);
+    dropLoot(sim, target);
+  }
   w.destroy(target);
   if (byPlayer) onPlayerKill(sim);
 }
@@ -256,5 +268,9 @@ export function onPlayerKill(sim: Sim): void {
     sim.events.push({ type: 'dashRefund', x: t.x, y: t.y });
   }
   if (hasFlag(sim, 'killStealth')) applyStatus(sim, sim.player, 'invisible', 60);
+  if (hasFlag(sim, 'bloodstone')) {
+    const h = w.req(sim.player, 'health');
+    h.hp = Math.min(h.max, h.hp + 3);
+  }
   sim.hitstop(FEEL.hitstop.kill);
 }

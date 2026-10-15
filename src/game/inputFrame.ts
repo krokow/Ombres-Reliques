@@ -1,4 +1,4 @@
-import type { ProgressAction } from '../systems/progression';
+import type { UiAction } from '../systems/actions';
 
 /**
  * Device-agnostic input snapshot fed to the simulation once per fixed step.
@@ -24,8 +24,10 @@ export interface InputFrame {
   interactPressed: boolean;
   /** Party slot requested this tick (0-2), or -1. */
   switchTo: number;
-  /** Level-up card / talent picked in the progression panel this tick. */
-  progress: ProgressAction | null;
+  /** Command issued by a UI panel this tick (card, talent, equip, altar…). */
+  ui: UiAction | null;
+  /** Quick consumable slot used this tick (0-1), or -1. */
+  useSlot: number;
 }
 
 export function emptyInput(): InputFrame {
@@ -43,6 +45,7 @@ export function emptyInput(): InputFrame {
     secondaryHeld: false,
     interactPressed: false,
     switchTo: -1,
-    progress: null,
+    ui: null,
+    useSlot: -1,
   };
 }

@@ -126,7 +126,7 @@ describe('card offers', () => {
     const m = party(game).members[0]!;
     addXp(game, m, xpToNext(1) + xpToNext(2));
     m.progress.offer = ['vigor', 'might', 'precision'];
-    run(game, 1, { progress: { kind: 'card', member: 0, slot: 0 } });
+    run(game, 1, { ui: { kind: 'card', member: 0, slot: 0 } });
     expect(m.progress.cards.vigor).toBe(1);
     expect(m.progress.pendingCards).toBe(1);
     expect(m.health.max).toBe(Math.round(SHADOW_BLADE.maxHp * 1.12));

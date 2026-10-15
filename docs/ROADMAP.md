@@ -144,3 +144,24 @@
   (globales / compétence / principale / dash), charges de dash, énergie, vol de vie, spécifiques de kit.
 - Les choix passent par l'`InputFrame` (`progress`) : une run reste rejouable à l'identique.
 - Debug : `xp <n>`. 158 tests.
+
+## M6 – livré
+
+- **Équipement** (arme, armure, relique perso) : 4 raretés (commun → légendaire), stat implicite par
+  emplacement + 0 à 3 affixes sans doublon, niveau d'objet = étage ; raretés meilleures en profondeur.
+- **Comparaison sans pause (choix 1b)** : se tenir sur un objet affiche sa fiche face à l'équipement des
+  3 persos (écarts en vert/rouge), « Équiper » sur n'importe qui (l'ancien tombe au sol) ou « Recycler » en or.
+- **Consommables sur F / G (choix 2a)** : potion de vie, bombe (explosion neutre à retardement, casse les
+  murs fissurés), parchemin de foudre (dégâts + étourdissement en zone) ; piles de 3.
+- **Butin** : or à chaque kill (aimanté), clés, consommables et objets selon des tables (élites et
+  champions bien mieux dotés ; le boss lâche un épique+ et une relique).
+- **Coffres** : verrouillés (clé) dans les salles au trésor → épique+, libre dans la salle secrète.
+- **Boutique** : 4 présentoirs (2 objets, 1 consommable, relique ou clé), prix selon rareté et étage, E pour acheter.
+- **Autel** : Rappel (réanimer), Saignée (−15 % PV max du perso actif → relique), Pacte (objet légendaire
+  - malédiction). Un seul usage.
+- **Reliques d'équipe** : Cape d'ombre (+30 % invisible), Sablier fêlé (switch −40 %), Totem du relais
+  (+25 % dégâts à l'entrée), Cœur partagé, Pierre de sang, Œil du chasseur, Dent d'or, Lanterne, Plume de
+  phénix ; **malédictions** : fragilité, traque, disette.
+- Toutes les actions d'UI (cartes, talents, équiper, recycler, autel) passent par `UiAction` dans
+  l'`InputFrame` ; tirages sur le flux RNG `loot`.
+- 178 tests.
