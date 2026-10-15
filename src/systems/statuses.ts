@@ -48,6 +48,17 @@ export function damageTakenMultiplier(world: GameWorld, e: Entity): number {
   return product(world, e, (d) => d.damageTakenMult);
 }
 
+export function damageDealtMultiplier(world: GameWorld, e: Entity): number {
+  return product(world, e, (d) => d.damageDealtMult);
+}
+
+export function isTaunted(world: GameWorld, e: Entity): boolean {
+  return (
+    world.get(e, 'statuses')?.list.some((s) => (STATUSES[s.id] as StatusDef).forcesApproach) ??
+    false
+  );
+}
+
 export function isStunned(world: GameWorld, e: Entity): boolean {
   return world.get(e, 'statuses')?.list.some((s) => (STATUSES[s.id] as StatusDef).stuns) ?? false;
 }

@@ -2,7 +2,7 @@ import { Sfx } from './audio/sfx';
 import { FixedStepClock, FpsCounter, runLoop } from './core/loop';
 import { lerp, normalize } from './core/math';
 import { normalizeSeed, seedFromNumber } from './core/rng';
-import { CLASSES } from './data/classes';
+import { classDef } from './data/classes';
 import { ENGINE } from './data/config';
 import { ELITE_MODIFIERS, type EliteModifierId } from './data/elites';
 import { ENEMIES, isEnemyId, type EnemyId } from './data/enemies';
@@ -11,6 +11,8 @@ import { applyStatus } from './systems/statuses';
 import { loadKeyLayout } from './input/keyLabels';
 import { Game } from './game/game';
 import { revealAll } from './systems/dungeon';
+import { dealDamage } from './systems/damage';
+import { reviveAll } from './systems/team';
 import { spawnGroup } from './systems/waves';
 import { emptyInput, type InputFrame } from './game/inputFrame';
 import { KeyboardMouse } from './input/keyboardMouse';
@@ -18,6 +20,7 @@ import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Hud } from './render/hud';
 import { Minimap } from './render/minimap';
+import { Animator } from './render/anim';
 import { Renderer } from './render/renderer';
 import { CommandRegistry } from './ui/commands';
 import { DebugOverlay } from './ui/debugOverlay';
@@ -44,6 +47,7 @@ const input = new KeyboardMouse(canvas);
 const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
+let anim = new Animator();
 const commands = new CommandRegistry();
 const debug = new DebugOverlay(uiRoot, commands);
 let fx = new Effects();
@@ -54,6 +58,7 @@ function newGame(seed: string, mode: 'dungeon' | 'arena' = 'dungeon', startLevel
   const t = g.world.req(g.player, 'transform');
   camera.snapTo(t.x, t.y);
   fx = new Effects();
+  anim = new Animator();
   game = g;
   return g;
 }
@@ -113,7 +118,7 @@ function registerCommands(): void {
     help: 'remplit l’énergie (Exécution prête)',
     run: () => {
       const p = game.world.req(game.player, 'player');
-      p.energy = CLASSES[p.classId].maxEnergy;
+      p.energy = classDef(p.classId).maxEnergy;
       return 'Énergie au max';
     },
   });
@@ -165,6 +170,33 @@ function registerCommands(): void {
     help: 'arène de test (vagues infinies)',
     run: () => (newGame(game.seed, 'arena'), 'Arène'),
   });
+  commands.register('ko', {
+    help: 'met le personnage actif KO (test du relais)',
+    run: () => {
+      const h = game.world.req(game.player, 'health');
+      h.invuln = 0;
+      h.shield = 0;
+      dealDamage(game, game.player, {
+        amount: 99999,
+        source: null,
+        byPlayer: false,
+        crit: false,
+        backstab: false,
+        dirX: 0,
+        dirY: 0,
+        knockback: 0,
+        stagger: 0,
+        dot: false,
+        originX: 0,
+        originY: 0,
+      });
+      return 'KO';
+    },
+  });
+  commands.register('revive', {
+    help: 'réanime les personnages KO',
+    run: () => `${reviveAll(game, 1).length} réanimé(s)`,
+  });
   commands.register('killall', {
     help: 'détruit tous les ennemis',
     run: () => {
@@ -177,7 +209,7 @@ function registerCommands(): void {
     help: 'recharge les dashs',
     run: () => {
       const d = game.world.req(game.player, 'dash');
-      d.charges = CLASSES[game.world.req(game.player, 'player').classId].dash.maxCharges;
+      d.charges = classDef(game.world.req(game.player, 'player').classId).dash.maxCharges;
       return 'Dashs rechargés';
     },
   });
@@ -202,6 +234,15 @@ function sampleInput(): InputFrame {
     dashPressed: input.consumePressed('dash'),
     skillPressed: input.consumePressed('skill'),
     ultimatePressed: input.consumePressed('ultimate'),
+    secondaryHeld: input.isHeld('ranged'),
+    interactPressed: input.consumePressed('interact'),
+    switchTo: input.consumePressed('slot1')
+      ? 0
+      : input.consumePressed('slot2')
+        ? 1
+        : input.consumePressed('slot3')
+          ? 2
+          : -1,
   };
 }
 
@@ -242,6 +283,7 @@ runLoop(clock, {
         camera.snapTo(pt.x, pt.y);
       }
       fx.handle(ev, camera);
+      anim.onEvent(ev, game);
       sfx.onEvent(ev);
     }
 
@@ -257,8 +299,9 @@ runLoop(clock, {
     }
 
     fx.update(dt);
+    anim.update(game, dt);
     camera.follow({ x: px, y: py }, camera.screenToWorld(input.mouseX, input.mouseY), dt);
-    renderer.render(game, camera, fx, alpha, dt, { showHitboxes: debug.showHitboxes });
+    renderer.render(game, camera, fx, anim, alpha, dt, { showHitboxes: debug.showHitboxes });
     renderer.screenSpace();
     hud.draw(renderer.ctx, renderer.width, renderer.height, game, fx, dt);
     minimap.draw(renderer.ctx, renderer.width, renderer.height, game, performance.now() / 1000);
@@ -271,8 +314,8 @@ runLoop(clock, {
       `Joueur   ${t.x.toFixed(0)}, ${t.y.toFixed(0)}${game.godMode ? '  GOD' : ''}`,
       `Étage    ${game.level}${game.dungeon ? ` (essai ${game.dungeon.floor.attempt}, ${game.dungeon.floor.rooms.length} salles)` : ''}`,
       ``,
-      `ZQSD/WASD bouger · clic G combo · clic D shuriken · Espace dash`,
-      `A (AZERTY)/Q voile · R exécution · Tab carte · M son · F3/F4/² debug`,
+      `ZQSD/WASD bouger · clic G/D attaques · Espace mobilité · 1/2/3 switch`,
+      `A (AZERTY)/Q compétence · R ultime · E interagir · Tab carte · M son`,
     ]);
   },
 });

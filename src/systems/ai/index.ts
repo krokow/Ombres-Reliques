@@ -1,6 +1,6 @@
 import { enemyDef } from '../../data/enemies';
 import type { Sim } from '../../game/sim';
-import { isStunned } from '../statuses';
+import { isStunned, isTaunted } from '../statuses';
 import { kamikazeBehavior, meleeBehavior, rangedBehavior, summonerBehavior } from './behaviors';
 import { halt, perceive, setPhase, type Neighbor } from './context';
 
@@ -41,6 +41,7 @@ export function enemyAI(sim: Sim): void {
       speedMult: ai.speedMult,
       damageMult: ai.damageMult,
       staggered,
+      taunted: isTaunted(w, e),
       neighbors,
     });
 

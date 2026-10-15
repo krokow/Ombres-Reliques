@@ -5,6 +5,10 @@ export interface StatusDef {
   moveMult?: number;
   /** Multiplies all damage taken. */
   damageTakenMult?: number;
+  /** Multiplies damage dealt by the affected entity. */
+  damageDealtMult?: number;
+  /** AI drops ranged kiting and closes in on the player. */
+  forcesApproach?: boolean;
   /** Cannot act (AI frozen, attacks interrupted). */
   stuns?: boolean;
   /** Damage over time, applied every `intervalTicks`. */
@@ -16,7 +20,9 @@ export const STATUSES = {
   slow: { name: 'Ralenti', moveMult: 0.55, color: '#6fb6ff' },
   stun: { name: 'Étourdi', stuns: true, color: '#ffe14d' },
   poison: { name: 'Peste', dot: { damage: 3, intervalTicks: 30 }, color: '#9bd46a' },
+  burn: { name: 'Brûlure', dot: { damage: 4, intervalTicks: 20 }, color: '#ff8a3d' },
   mark: { name: 'Marqué', damageTakenMult: 1.15, color: '#d38bff' },
+  taunted: { name: 'Provoqué', damageDealtMult: 0.7, forcesApproach: true, color: '#ffcf5a' },
   invisible: { name: 'Invisible', color: '#7ff6ff' },
   /** Next landed attack is a guaranteed crit (granted when leaving the smoke veil). */
   ambush: { name: 'Embuscade', color: '#ffd34d' },

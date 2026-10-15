@@ -24,7 +24,16 @@ type SoundName =
   | 'doors'
   | 'cleared'
   | 'secret'
-  | 'descend';
+  | 'descend'
+  | 'switch'
+  | 'ko'
+  | 'revive'
+  | 'block'
+  | 'parry'
+  | 'quake'
+  | 'frost'
+  | 'fire'
+  | 'bolt';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -98,6 +107,25 @@ export class Sfx {
         return this.play('secret');
       case 'floor':
         return this.play('descend');
+      case 'switch':
+        return this.play('switch');
+      case 'ko':
+        return this.play('ko');
+      case 'revive':
+        return this.play('revive');
+      case 'block':
+        return this.play('block');
+      case 'parry':
+        return this.play('parry');
+      case 'shockwave':
+        return this.play(ev.color === 'frost' ? 'frost' : 'quake');
+      case 'taunt':
+        return this.play('quake');
+      case 'cast':
+        if (ev.spell === 'fire') return this.play('fire');
+        if (ev.spell === 'frost') return this.play('frost');
+        if (ev.spell === 'meteor') return;
+        return this.play('bolt');
       case 'kill':
         return this.play('kill');
       case 'dash':
@@ -198,6 +226,38 @@ export class Sfx {
         break;
       case 'descend':
         this.tone(t, 'sine', 440, 110, 0.8, 0.25);
+        break;
+      case 'switch':
+        this.tone(t, 'triangle', 330, 660, 0.12, 0.2);
+        this.noiseSweep(t, 0.15, 800, 4000, 0.2, 'bandpass');
+        break;
+      case 'ko':
+        this.tone(t, 'sawtooth', 260, 60, 0.6, 0.3);
+        break;
+      case 'revive':
+        this.tone(t, 'sine', 392, 784, 0.4, 0.2);
+        this.tone(t + 0.15, 'sine', 523, 1046, 0.4, 0.15);
+        break;
+      case 'block':
+        this.tone(t, 'square', 900, 500, 0.06, 0.15);
+        break;
+      case 'parry':
+        this.tone(t, 'triangle', 1800, 1200, 0.25, 0.3);
+        this.tone(t, 'triangle', 2700, 2400, 0.2, 0.15);
+        break;
+      case 'quake':
+        this.tone(t, 'sine', 90, 35, 0.45, 0.8);
+        this.noiseSweep(t, 0.4, 1200, 100, 0.5, 'lowpass');
+        break;
+      case 'frost':
+        this.noiseSweep(t, 0.3, 6000, 2500, 0.25, 'highpass');
+        this.tone(t, 'sine', 1500, 1900, 0.2, 0.08);
+        break;
+      case 'fire':
+        this.noiseSweep(t, 0.6, 400, 1500, 0.4, 'bandpass');
+        break;
+      case 'bolt':
+        this.tone(t, 'sine', 900, 1500, 0.07, 0.12);
         break;
       case 'tick':
         this.tone(t, 'sine', 300, 250, 0.04, 0.08);

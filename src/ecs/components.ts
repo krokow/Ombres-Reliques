@@ -44,6 +44,10 @@ export type Team = 'player' | 'enemy' | 'neutral';
 export interface Health {
   hp: number;
   max: number;
+  /** Absorb pool consumed before HP. */
+  shield: number;
+  /** Ticks since damage was last taken (shield regen, etc.). */
+  sinceHit: number;
   /** Remaining invulnerability ticks. */
   invuln: number;
   /** Remaining stagger ticks (cannot act). */
@@ -63,6 +67,9 @@ export interface ActionBuffer {
   dash: number;
   skill: number;
   ultimate: number;
+  /** Requested party slot (buffered like other presses). */
+  switchSlot: number;
+  switchTicks: number;
 }
 
 export interface DashState {
@@ -92,15 +99,54 @@ export interface ExecutionState {
   timer: number;
 }
 
+export interface MeteorState {
+  x: number;
+  y: number;
+  left: number;
+  timer: number;
+}
+
+/** Per-character runtime state (each party member owns one; the active one is installed). */
 export interface PlayerState {
   classId: ClassId;
+  /** Primary attack cooldown (classes without a combo). */
+  primaryCooldown: number;
+  /** Secondary action cooldown. */
   rangedCooldown: number;
   skillCooldown: number;
   energy: number;
-  kills: number;
+  mana: number;
   /** Was inside a smoke veil last tick (leaving it grants Ambush). */
   inVeil: boolean;
+  /** Shadow Blade ultimate in progress. */
   execution: ExecutionState | null;
+  /** Guardian: ticks since the shield was raised, -1 when not blocking. */
+  blockTicks: number;
+  /** Arcanist: bolts fired (every Nth is empowered). */
+  boltCount: number;
+  /** Arcanist ultimate in progress. */
+  meteors: MeteorState | null;
+}
+
+/** One party member. Its components are swapped onto the player entity when it is active. */
+export interface Character {
+  classId: ClassId;
+  ko: boolean;
+  /** Ticks before this character may be switched back in. */
+  lockout: number;
+  state: PlayerState;
+  health: Health;
+  dash: DashState;
+  combo: ComboState;
+  statuses: Statuses;
+}
+
+export interface Party {
+  members: Character[];
+  active: number;
+  /** Global switch cooldown. */
+  switchCooldown: number;
+  kills: number;
 }
 
 export type EnemyPhase =
@@ -162,7 +208,7 @@ export interface Statuses {
 }
 
 export interface Zone {
-  kind: 'smoke';
+  kind: 'smoke' | 'fire';
   radius: number;
   ticks: number;
   maxTicks: number;
@@ -193,16 +239,28 @@ export interface Hitbox {
   statuses: readonly StatusApplication[];
   /** Kills by this (neutral) hitbox count as player kills. */
   creditPlayer: boolean;
+  /** Class that produced it (crit stats and passives survive a switch). */
+  sourceClass: ClassId | null;
   /** Entities already hit: each hitbox hits a target at most once. */
   hit: Set<Entity>;
+}
+
+/** Area burst spawned when a projectile hits, expires or meets a wall. */
+export interface BurstSpec {
+  radius: number;
+  damage: number;
+  knockback: number;
+  statuses: readonly StatusApplication[];
 }
 
 export interface Projectile {
   pierceLeft: number;
   lifetime: number;
+  burst: BurstSpec | null;
 }
 
-export type RenderKind = ClassId | EnemyId | 'shuriken' | 'boneArrow' | 'explosion';
+export type RenderKind =
+  ClassId | EnemyId | 'shuriken' | 'boneArrow' | 'arcaneBolt' | 'frostOrb' | 'explosion';
 
 export interface Renderable {
   kind: RenderKind;
@@ -222,6 +280,7 @@ export interface Components {
   dash: DashState;
   combo: ComboState;
   player: PlayerState;
+  party: Party;
   enemy: EnemyState;
   elite: EliteState;
   minion: Minion;

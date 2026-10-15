@@ -1,6 +1,7 @@
 import { Rng } from '../core/rng';
 import type { Entity } from '../ecs/world';
 import { BIOMES } from '../data/biomes';
+import { CLASSES } from '../data/classes';
 import { FEEL } from '../data/combat';
 import type { RoomType } from '../dungeon/floor';
 import { ENEMIES, isEnemyId } from '../data/enemies';
@@ -62,6 +63,20 @@ export interface Blink {
   maxLife: number;
 }
 
+/** Dying actor: collapses, spins and fades (death animation). */
+interface Corpse {
+  x: number;
+  y: number;
+  radius: number;
+  body: string;
+  dark: string;
+  spin: number;
+  life: number;
+  maxLife: number;
+  /** KO'd heroes rise as a fading ghost instead of collapsing. */
+  ghost: boolean;
+}
+
 interface Ring {
   x: number;
   y: number;
@@ -92,6 +107,7 @@ export class Effects {
   ghosts: Ghost[] = [];
   rings: Ring[] = [];
   blinks: Blink[] = [];
+  corpses: Corpse[] = [];
   /** Brief full-screen darkening when the ultimate starts. */
   ultFlash = 0;
   /** Remaining white-flash time per entity (seconds). */
@@ -115,6 +131,11 @@ export class Effects {
       case 'hit': {
         if (ev.dot) {
           this.text(ev.x, ev.y - 12, `${ev.damage}`, PALETTE.poison, 9);
+          break;
+        }
+        if (!ev.byPlayer && ev.absorbed >= ev.damage) {
+          this.text(ev.x, ev.y - 16, `(${ev.damage})`, '#dbe8ff', 11);
+          this.flashes.set(ev.target, 0.06);
           break;
         }
         this.flashes.set(ev.target, 0.09);
@@ -153,6 +174,17 @@ export class Effects {
         this.flashes.delete(ev.target);
         {
           const look = isEnemyId(ev.kind) ? ENEMIES[ev.kind].palette : null;
+          this.corpses.push({
+            x: ev.x,
+            y: ev.y,
+            radius: isEnemyId(ev.kind) ? ENEMIES[ev.kind].radius : 12,
+            body: look?.body ?? PALETTE.ghoulBlood,
+            dark: look?.dark ?? PALETTE.ghoulDark,
+            spin: this.rng.range(-4, 4),
+            life: 0.45,
+            maxLife: 0.45,
+            ghost: false,
+          });
           this.burst(ev.x, ev.y, 22, look?.body ?? PALETTE.ghoulBlood, 260, 0.6, 0, Math.PI * 2);
           this.burst(ev.x, ev.y, 10, look?.dark ?? PALETTE.ghoulDark, 140, 0.8, 0, Math.PI * 2);
         }
@@ -186,19 +218,26 @@ export class Effects {
       case 'wave':
         this.banner = { text: `Vague ${ev.wave}`, life: 1.6, maxLife: 1.6 };
         break;
-      case 'explosion':
+      case 'explosion': {
         camera.addTrauma(FEEL.shake.explosion);
-        this.burst(ev.x, ev.y, 26, PALETTE.explosion, ev.radius * 5, 0.45, 0, Math.PI * 2, true);
-        this.burst(ev.x, ev.y, 14, PALETTE.poison, ev.radius * 2.5, 0.8, 0, Math.PI * 2);
+        const [hot, cold] =
+          ev.flavor === 'frost'
+            ? ['#e6fbff', '#6fd0ff']
+            : ev.flavor === 'arcane'
+              ? ['#ffb347', '#c77dff']
+              : [PALETTE.explosion, PALETTE.poison];
+        this.burst(ev.x, ev.y, 26, hot, ev.radius * 5, 0.45, 0, Math.PI * 2, true);
+        this.burst(ev.x, ev.y, 14, cold, ev.radius * 2.5, 0.8, 0, Math.PI * 2);
         this.rings.push({
           x: ev.x,
           y: ev.y,
           radius: ev.radius,
-          color: PALETTE.explosion,
+          color: hot,
           life: 0.3,
           maxLife: 0.3,
         });
         break;
+      }
       case 'enemyShoot':
         this.burst(ev.x, ev.y, 3, PALETTE.shuriken, 80, 0.15, ev.angle, 0.5);
         break;
@@ -284,6 +323,156 @@ export class Effects {
           maxLife: 2.4,
         };
         break;
+      case 'switch': {
+        const to = CLASSES[ev.to];
+        const from = CLASSES[ev.from];
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 40,
+          color: to.palette.trim,
+          life: 0.35,
+          maxLife: 0.35,
+        });
+        this.burst(ev.x, ev.y, 16, to.palette.trim, 180, 0.4, 0, Math.PI * 2, true);
+        // The leaving hero lingers as an afterimage.
+        this.corpses.push({
+          x: ev.x,
+          y: ev.y,
+          radius: from.radius,
+          body: from.palette.body,
+          dark: from.palette.trim,
+          spin: 0,
+          life: 0.3,
+          maxLife: 0.3,
+          ghost: true,
+        });
+        this.text(ev.x, ev.y - 28, to.name, to.palette.trim, 10);
+        break;
+      }
+      case 'ko': {
+        const def = CLASSES[ev.classId];
+        camera.addTrauma(0.6);
+        this.corpses.push({
+          x: ev.x,
+          y: ev.y,
+          radius: def.radius,
+          body: def.palette.body,
+          dark: def.palette.trim,
+          spin: 0,
+          life: 1.2,
+          maxLife: 1.2,
+          ghost: true,
+        });
+        this.banner = { text: `${def.name} est KO`, life: 1.6, maxLife: 1.6 };
+        break;
+      }
+      case 'revive':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 70,
+          color: '#fff3c4',
+          life: 0.6,
+          maxLife: 0.6,
+        });
+        this.burst(ev.x, ev.y, 30, '#fff3c4', 160, 0.8, -Math.PI / 2, Math.PI);
+        this.banner = { text: 'L’équipe se relève', life: 1.6, maxLife: 1.6 };
+        break;
+      case 'block':
+        this.burst(
+          ev.x + Math.cos(ev.angle) * 16,
+          ev.y + Math.sin(ev.angle) * 16,
+          6,
+          '#dbe8ff',
+          160,
+          0.2,
+          ev.angle,
+          1.2,
+          true,
+        );
+        break;
+      case 'parry':
+        camera.addTrauma(0.25);
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 36,
+          color: '#ffffff',
+          life: 0.25,
+          maxLife: 0.25,
+        });
+        this.burst(
+          ev.x + Math.cos(ev.angle) * 18,
+          ev.y + Math.sin(ev.angle) * 18,
+          16,
+          PALETTE.crit,
+          300,
+          0.3,
+          ev.angle,
+          1.6,
+          true,
+        );
+        this.text(ev.x, ev.y - 26, 'PARADE !', PALETTE.crit, 13);
+        break;
+      case 'shockwave': {
+        const color =
+          ev.color === 'gold' ? '#ffcf5a' : ev.color === 'frost' ? '#bff0ff' : PALETTE.summon;
+        camera.addTrauma(ev.radius > 120 ? 0.45 : 0.2);
+        this.rings.push({ x: ev.x, y: ev.y, radius: ev.radius, color, life: 0.35, maxLife: 0.35 });
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.radius * 0.6,
+          color,
+          life: 0.25,
+          maxLife: 0.25,
+        });
+        this.burst(
+          ev.x,
+          ev.y,
+          Math.round(ev.radius / 5),
+          color,
+          ev.radius * 3,
+          0.4,
+          0,
+          Math.PI * 2,
+        );
+        break;
+      }
+      case 'taunt':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.radius,
+          color: '#ffcf5a',
+          life: 0.5,
+          maxLife: 0.5,
+        });
+        this.text(ev.x, ev.y - 28, 'PROVOCATION', '#ffcf5a', 11);
+        break;
+      case 'cast':
+        if (ev.spell === 'bolt' || ev.spell === 'empowered') {
+          this.burst(
+            ev.x,
+            ev.y,
+            ev.spell === 'empowered' ? 10 : 4,
+            '#bff0ff',
+            140,
+            0.2,
+            ev.angle,
+            0.8,
+            true,
+          );
+        } else if (ev.spell === 'frost') {
+          this.burst(ev.x, ev.y, 8, '#e6fbff', 100, 0.3, ev.angle, 1.2);
+        } else if (ev.spell === 'fire') {
+          this.burst(ev.x, ev.y, 18, '#ff8a3d', 160, 0.5, -Math.PI / 2, Math.PI);
+        }
+        break;
+      case 'interactFail':
+        this.text(ev.x, ev.y - 26, ev.reason, PALETTE.hudDim, 10);
+        break;
       case 'status':
       case 'windup':
         break;
@@ -312,6 +501,7 @@ export class Effects {
     for (const g of this.ghosts) g.life -= dt;
     for (const r of this.rings) r.life -= dt;
     for (const b of this.blinks) b.life -= dt;
+    for (const c of this.corpses) c.life -= dt;
     this.ultFlash = Math.max(0, this.ultFlash - dt);
     for (const [e, t] of this.flashes) {
       if (t - dt <= 0) this.flashes.delete(e);
@@ -325,6 +515,7 @@ export class Effects {
     this.ghosts = this.ghosts.filter((g) => g.life > 0);
     this.rings = this.rings.filter((r) => r.life > 0);
     this.blinks = this.blinks.filter((b) => b.life > 0);
+    this.corpses = this.corpses.filter((c) => c.life > 0);
   }
 
   drawParticles(ctx: CanvasRenderingContext2D): void {
@@ -354,6 +545,31 @@ export class Effects {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawCorpses(ctx: CanvasRenderingContext2D): void {
+    for (const c of this.corpses) {
+      const k = 1 - c.life / c.maxLife;
+      ctx.save();
+      if (c.ghost) {
+        ctx.globalAlpha = (1 - k) * 0.6;
+        ctx.translate(c.x, c.y - k * 24);
+        ctx.scale(1 + k * 0.3, 1 + k * 0.3);
+      } else {
+        ctx.globalAlpha = 1 - k;
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.spin * k);
+        ctx.scale(1 + k * 0.4, Math.max(0.05, 1 - k));
+      }
+      ctx.fillStyle = c.body;
+      ctx.beginPath();
+      ctx.arc(0, 0, c.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = c.dark;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   drawTexts(ctx: CanvasRenderingContext2D): void {

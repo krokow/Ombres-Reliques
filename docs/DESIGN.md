@@ -54,6 +54,24 @@
 - **Exécution** : cibles verrouillées au lancement, priorité marque > % PV ; les cibles mortes entre-temps
   sont sautées ; échec sans cible = pas de coût.
 
+## Équipe (M4)
+
+- **Un seul corps, trois « âmes »** : le joueur reste une entité stable (les ennemis, la caméra et les
+  systèmes ne changent jamais de cible) ; switcher réinstalle les composants du perso choisi. Simple et
+  sans cas particuliers.
+- **Cooldowns (choix 2c)** : global 1 s + verrou 4 s sur celui qui sort → on alterne vraiment entre
+  les trois au lieu de faire des allers-retours.
+- **Sortir purge** les statuts du perso qui sort : le switch devient aussi un outil défensif.
+- **Énergie par perso** (chacun charge son ultime), gagnée seulement par le perso actif.
+- **Kits** : chaque classe implémente `Kit` (update, busy, moveFactor, entry, hud). Les kits et les
+  systèmes dégâts/équipe s'importent mutuellement : la résolution se fait à l'appel (`kitFor`).
+- **E = interaction** (autel aujourd'hui, coffres/boutique en M6).
+
+## Animation
+
+- Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :
+  aucune donnée d'animation n'influence la simulation (les hitboxes restent celles des données).
+
 ## Combat (M2)
 
 - **`dealDamage` est l'unique point d'entrée** des dégâts : toute règle (marque, vol de vie, énergie,

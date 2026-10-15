@@ -87,7 +87,7 @@ describe('Boursouflé', () => {
     run(game, 60, { aimX: SPAWN.x + 100, aimY: SPAWN.y });
     expect(game.world.isAlive(bloater)).toBe(false);
     expect(game.world.isAlive(ghoul)).toBe(false);
-    expect(game.world.req(game.player, 'player').kills).toBe(2);
+    expect(game.world.req(game.player, 'party').kills).toBe(2);
   });
 });
 

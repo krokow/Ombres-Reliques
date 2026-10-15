@@ -1,3 +1,5 @@
+import { classDef } from '../data/classes';
+import type { Game } from '../game/game';
 import { PALETTE } from './palette';
 
 /** Procedural "sprites": every character is drawn from vector primitives. */
@@ -29,6 +31,7 @@ export function drawShadowBlade(
     moveY: number;
     alpha: number;
     invisible: boolean;
+    swing: SwingPose | null;
   },
 ): void {
   if (opts.invisible) {
@@ -101,14 +104,295 @@ export function drawShadowBlade(
   ctx.fillRect(r * 0.5, -r * 0.38, r * 0.3, r * 0.16);
   ctx.fillRect(r * 0.5, r * 0.22, r * 0.3, r * 0.16);
   ctx.shadowBlur = 0;
-  // Reverse-grip dagger.
+  // Dagger: rests in reverse grip, sweeps across the front when attacking.
+  const side = opts.swing && opts.swing.index % 2 === 1 ? -1 : 1;
+  const daggerAngle = opts.swing ? swingAngle(opts.swing, 1.3, 1.1) * side : 0.25;
+  const hand = opts.swing ? 0.95 : 0.85;
+  ctx.save();
+  ctx.translate(r * 0.35, r * hand * (opts.swing ? -side * 0.3 : 1));
+  ctx.rotate(daggerAngle);
   ctx.strokeStyle = '#d9dcf2';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = opts.swing && opts.swing.phase === 'active' ? 3 : 2;
   ctx.beginPath();
-  ctx.moveTo(r * 0.3, r * 0.85);
-  ctx.lineTo(r * 1.15, r * 1.05);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(r * (opts.swing ? 1.2 : 0.9), 0);
   ctx.stroke();
   ctx.restore();
+  ctx.restore();
+}
+
+/** Where an attack is in its timeline (from the simulation's combo state). */
+export interface SwingPose {
+  phase: 'windup' | 'active' | 'recovery';
+  /** 0..1 progress inside the current phase. */
+  t: number;
+  index: number;
+}
+
+/**
+ * Weapon angle for a swing: pulled back by `back` during windup, sweeping
+ * to `+through` while active, easing back during recovery.
+ */
+export function swingAngle(pose: SwingPose, back: number, through: number): number {
+  const ease = (k: number): number => 1 - (1 - k) * (1 - k);
+  if (pose.phase === 'windup') return -back * ease(pose.t);
+  if (pose.phase === 'active') return -back + (back + through) * ease(pose.t);
+  return through * (1 - ease(pose.t));
+}
+
+export function drawGuardian(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: BladeLook,
+  opts: {
+    flash: boolean;
+    time: number;
+    alpha: number;
+    blocking: boolean;
+    swing: SwingPose | null;
+    shield: number;
+  },
+): void {
+  ctx.save();
+  ctx.globalAlpha = opts.alpha;
+  ctx.rotate(facing);
+  const c = (col: string): string => (opts.flash ? '#ffffff' : col);
+  // Mace (right hand), drawn under the body when resting.
+  const maceAngle = opts.swing
+    ? swingAngle(opts.swing, 2.0, 1.6) * (opts.swing.index === 1 ? -1 : 1)
+    : 0.6;
+  const drawMace = (): void => {
+    ctx.save();
+    ctx.translate(r * 0.2, r * 0.8);
+    ctx.rotate(maceAngle);
+    ctx.strokeStyle = '#6b5a45';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(r * 1.3, 0);
+    ctx.stroke();
+    ctx.fillStyle = c('#aeb4c2');
+    ctx.beginPath();
+    ctx.arc(r * 1.45, 0, r * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c('#d8dde8');
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + opts.time * 0;
+      ctx.fillRect(r * 1.45 + Math.cos(a) * r * 0.42 - 1.5, Math.sin(a) * r * 0.42 - 1.5, 3, 3);
+    }
+    ctx.restore();
+  };
+  if (!opts.swing) drawMace();
+  // Armoured body.
+  ctx.fillStyle = c(look.body);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = c(look.trim);
+  ctx.stroke();
+  // Pauldrons.
+  ctx.fillStyle = c('#58698a');
+  ctx.beginPath();
+  ctx.arc(-r * 0.15, -r * 0.85, r * 0.42, 0, Math.PI * 2);
+  ctx.arc(-r * 0.15, r * 0.85, r * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  // Helmet visor.
+  ctx.fillStyle = '#0b0910';
+  ctx.fillRect(r * 0.3, -r * 0.45, r * 0.35, r * 0.9);
+  ctx.fillStyle = look.eyes;
+  ctx.fillRect(r * 0.45, -r * 0.3, r * 0.15, r * 0.6);
+  if (opts.swing) drawMace();
+  // Shield: on the left arm, or raised in front while blocking.
+  ctx.save();
+  if (opts.blocking) {
+    ctx.translate(r * 1.05, 0);
+    ctx.fillStyle = c('#7c8db0');
+    ctx.strokeStyle = c(look.trim);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(-r * 0.9, 0, r * 1.25, -0.95, 0.95);
+    ctx.arc(-r * 0.9, 0, r * 0.9, 0.95, -0.95, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.translate(r * 0.1, -r * 0.95);
+    ctx.rotate(-0.4);
+    ctx.fillStyle = c('#7c8db0');
+    ctx.strokeStyle = c(look.trim);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.75, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.restore();
+  // Shield bubble (absorb pool).
+  if (opts.shield > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.45, 0.15 + opts.shield / 200) * opts.alpha;
+    ctx.strokeStyle = '#dbe8ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.55 + Math.sin(opts.time * 5) * 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+export function drawArcanist(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: BladeLook,
+  opts: {
+    flash: boolean;
+    time: number;
+    alpha: number;
+    cast: number;
+    channel: boolean;
+    mana: number;
+  },
+): void {
+  ctx.save();
+  ctx.globalAlpha = opts.alpha;
+  ctx.rotate(facing);
+  const c = (col: string): string => (opts.flash ? '#ffffff' : col);
+  // Robe hem flaring backwards.
+  ctx.fillStyle = c(look.body);
+  ctx.beginPath();
+  ctx.moveTo(r * 0.9, 0);
+  ctx.quadraticCurveTo(r * 0.2, -r * 1.25, -r * 1.25, -r * 0.8);
+  ctx.quadraticCurveTo(-r * 0.8, 0, -r * 1.25, r * 0.8);
+  ctx.quadraticCurveTo(r * 0.2, r * 1.25, r * 0.9, 0);
+  ctx.fill();
+  ctx.strokeStyle = c(look.trim);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Hood + glowing eyes.
+  ctx.fillStyle = c('#15223a');
+  ctx.beginPath();
+  ctx.arc(r * 0.15, 0, r * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = 6;
+  ctx.fillRect(r * 0.4, -r * 0.28, r * 0.18, r * 0.14);
+  ctx.fillRect(r * 0.4, r * 0.14, r * 0.18, r * 0.14);
+  ctx.shadowBlur = 0;
+  // Staff: thrust forward when casting, raised high while channelling meteors.
+  const thrust = opts.cast * r * 0.6;
+  ctx.save();
+  ctx.translate(r * 0.3 + thrust, r * 0.95);
+  ctx.rotate(opts.channel ? -0.9 + Math.sin(opts.time * 10) * 0.1 : -0.15 - opts.cast * 0.35);
+  ctx.strokeStyle = '#7a5b3a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.6, 0);
+  ctx.lineTo(r * 1.1, 0);
+  ctx.stroke();
+  const glow = 0.4 + opts.mana * 0.6 + opts.cast * 0.6;
+  ctx.fillStyle = look.trim;
+  ctx.shadowColor = look.trim;
+  ctx.shadowBlur = 6 + glow * 10;
+  ctx.beginPath();
+  ctx.arc(r * 1.2, 0, r * (0.25 + opts.cast * 0.12), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+  // Orbiting mana motes.
+  for (let i = 0; i < 3; i++) {
+    const a = opts.time * 2.5 + (i * Math.PI * 2) / 3;
+    ctx.globalAlpha = opts.alpha * (0.3 + opts.mana * 0.5);
+    ctx.fillStyle = '#9fc4ff';
+    ctx.fillRect(Math.cos(a) * r * 1.4 - 1, Math.sin(a) * r * 1.4 - 1, 2.5, 2.5);
+  }
+  ctx.restore();
+}
+
+export function drawArcaneBolt(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  big: boolean,
+  time: number,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  const r = big ? 7 : 4.5;
+  ctx.fillStyle = 'rgba(111, 208, 255, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 1.5, 0, r * 2.4, r * 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = big ? '#ffffff' : '#bff0ff';
+  ctx.shadowColor = '#6fd0ff';
+  ctx.shadowBlur = big ? 14 : 8;
+  ctx.beginPath();
+  ctx.arc(0, 0, r + Math.sin(time * 40) * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+export function drawFrostOrb(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  time: number,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(time * 6);
+  ctx.fillStyle = '#e6fbff';
+  ctx.shadowColor = '#9fe8ff';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const a = (i * Math.PI) / 6;
+    const rr = i % 2 === 0 ? 9 : 5;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+export function drawFire(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  life: number,
+  time: number,
+): void {
+  const fade = Math.min(1, life * 6, (1 - life) * 10 + 0.2);
+  const g = ctx.createRadialGradient(x, y, radius * 0.1, x, y, radius);
+  g.addColorStop(0, `rgba(255, 200, 80, ${0.45 * fade})`);
+  g.addColorStop(0.6, `rgba(255, 110, 40, ${0.3 * fade})`);
+  g.addColorStop(1, 'rgba(120, 20, 10, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  // Flickering tongues.
+  for (let i = 0; i < 10; i++) {
+    const a = i * 2.4;
+    const d = radius * (0.2 + ((i * 37) % 10) / 14);
+    const h = 6 + Math.sin(time * 12 + i) * 4;
+    const fx = x + Math.cos(a) * d;
+    const fy = y + Math.sin(a) * d;
+    ctx.fillStyle = `rgba(255, ${150 + ((i * 23) % 80)}, 60, ${0.7 * fade})`;
+    ctx.beginPath();
+    ctx.moveTo(fx - 3, fy);
+    ctx.quadraticCurveTo(fx, fy - h * 2, fx + 3, fy);
+    ctx.fill();
+  }
 }
 
 export interface GhoulLook {
@@ -391,4 +675,26 @@ export function drawSmoke(
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
+}
+
+/** Current swing pose of the player, read from the simulation's combo state. */
+export function swingPose(game: Game): SwingPose | null {
+  const w = game.world;
+  const combo = w.req(game.player, 'combo');
+  if (combo.tick < 0) return null;
+  const def = classDef(w.req(game.player, 'player').classId);
+  if (!('combo' in def)) return null;
+  const hit = def.combo[combo.index];
+  if (!hit) return null;
+  const t = combo.tick;
+  if (t < hit.windupTicks)
+    return { phase: 'windup', t: t / Math.max(1, hit.windupTicks), index: combo.index };
+  if (t < hit.windupTicks + hit.activeTicks) {
+    return { phase: 'active', t: (t - hit.windupTicks) / hit.activeTicks, index: combo.index };
+  }
+  return {
+    phase: 'recovery',
+    t: Math.min(1, (t - hit.windupTicks - hit.activeTicks) / hit.recoveryTicks),
+    index: combo.index,
+  };
 }

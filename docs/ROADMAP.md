@@ -99,3 +99,30 @@
 - Tests : 300 seeds × 3 étages validés, déterminisme, couloirs ≥ 2 de large partout, boss derrière le
   mini-boss, secrets, rencontres, portes, escalier, scaling, run complète déterministe — 103 tests.
 - Génération ≈ 2 ms par étage.
+
+## M4 – livré
+
+- **Équipe de 3** (Lame d'Ombre, Gardien, Arcaniste — choix 1a), un seul corps à l'écran : les
+  composants propres à chaque perso (PV, dash, combo, statuts, état du kit) sont échangés au switch.
+- **Switch (choix 2c)** sur 1/2/3 : cooldown global 1 s + verrou de retour 4 s pour celui qui sort,
+  appui bufferisé, i-frames brèves. Sortir purge les statuts. Réserve : régénération 2 %/s, cooldowns,
+  recharges et mana continuent de tourner.
+- **Effets d'entrée** : Lame (invisible + Embuscade), Gardien (onde de choc + bouclier), Arcaniste
+  (nova de givre).
+- **KO** : relais automatique vers le perso suivant ; run perdue quand les 3 tombent. Réanimation à
+  l'étage suivant (30 % PV) ou à l'**autel** (E) contre 25 % des PV du perso actif.
+- **Gardien** : masse 2 coups larges, bouclier directionnel (−80 % de face, parade parfaite = 0 dégât +
+  étourdissement de l'attaquant), charge, provocation (les tireurs viennent au contact, −30 % dégâts),
+  Bastion (onde étourdissante + gros bouclier), bouclier qui se régénère hors combat, énergie en encaissant.
+- **Arcaniste** (mana) : traits arcaniques (1 sur 3 perce), orbe de givre au curseur, blink, brasier,
+  pluie de météores télégraphiés ; passif +20 % sur les cibles ralenties.
+- **Architecture** : `systems/kits/` (un kit par classe derrière une interface `Kit`), briques
+  génériques dans `systems/player.ts`, équipe dans `systems/team.ts`, données dans `data/classes.ts`
+  et `data/team.ts`. Les hitboxes retiennent leur classe d'origine (crit/passifs corrects après switch).
+- **Animations procédurales** (`render/anim.ts`) : cycle de marche, respiration, inclinaison,
+  squash & stretch sur ressort, recul à l'impact, pop d'entrée au switch ; poses d'armes dérivées de
+  l'état réel des attaques (dague, masse, bouclier levé, bâton qui pousse/canalise) ; mort qui
+  s'effondre, KO en fantôme, image rémanente du perso qui sort.
+- HUD : portraits d'équipe (PV, énergie, verrou, KO), cases de compétences fournies par chaque kit,
+  bouclier et mana.
+- Debug : `ko`, `revive`. 135 tests.

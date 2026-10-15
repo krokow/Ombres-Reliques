@@ -1,14 +1,56 @@
-import { CLASSES, type ClassId } from '../data/classes';
+import { CLASSES, SHADOW_BLADE, type ClassId } from '../data/classes';
+import type { StatusApplication } from '../data/statuses';
 import { DUNGEON } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
-import { transformAt, type Hitbox } from '../ecs/components';
+import {
+  transformAt,
+  type BurstSpec,
+  type Character,
+  type Hitbox,
+  type Team,
+  type Zone,
+} from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import type { Sim } from './sim';
 
-export function spawnPlayer(sim: Sim, classId: ClassId, x: number, y: number): Entity {
-  const w = sim.world;
+function newCharacter(classId: ClassId): Character {
   const def = CLASSES[classId];
+  return {
+    classId,
+    ko: false,
+    lockout: 0,
+    state: {
+      classId,
+      primaryCooldown: 0,
+      rangedCooldown: 0,
+      skillCooldown: 0,
+      energy: 0,
+      mana: def.id === 'arcanist' ? def.maxMana : 0,
+      inVeil: false,
+      execution: null,
+      blockTicks: -1,
+      boltCount: 0,
+      meteors: null,
+    },
+    health: { hp: def.maxHp, max: def.maxHp, shield: 0, sinceHit: 9999, invuln: 0, stagger: 0 },
+    dash: { charges: def.dash.maxCharges, recharge: 0, active: 0, dirX: 1, dirY: 0 },
+    combo: { index: 0, tick: -1, idleTicks: 0, hitbox: null },
+    statuses: { list: [] },
+  };
+}
+
+/**
+ * The player is one entity whose character-specific components (health,
+ * dash, combo, statuses, player state) are swapped when switching: systems
+ * and enemies keep a single stable target.
+ */
+export function spawnPlayer(sim: Sim, party: readonly ClassId[], x: number, y: number): Entity {
+  const w = sim.world;
+  const members = party.map(newCharacter);
+  const first = members[0];
+  if (!first) throw new Error('Empty party');
+  const def = CLASSES[first.classId];
   const e = w.create();
   w.add(e, 'transform', transformAt(x, y));
   w.add(e, 'velocity', { x: 0, y: 0 });
@@ -16,22 +58,23 @@ export function spawnPlayer(sim: Sim, classId: ClassId, x: number, y: number): E
   w.add(e, 'body', { radius: def.radius, solid: true, pushable: true, weight: def.weight });
   w.add(e, 'facing', { angle: 0 });
   w.add(e, 'team', 'player');
-  w.add(e, 'health', { hp: def.maxHp, max: def.maxHp, invuln: 0, stagger: 0 });
-  w.add(e, 'statuses', { list: [] });
   w.add(e, 'mover', { ...def.mover });
-  w.add(e, 'buffer', { attack: 0, ranged: 0, dash: 0, skill: 0, ultimate: 0 });
-  w.add(e, 'dash', { charges: def.dash.maxCharges, recharge: 0, active: 0, dirX: 1, dirY: 0 });
-  w.add(e, 'combo', { index: 0, tick: -1, idleTicks: 0, hitbox: null });
-  w.add(e, 'player', {
-    classId,
-    rangedCooldown: 0,
-    skillCooldown: 0,
-    energy: 0,
-    kills: 0,
-    inVeil: false,
-    execution: null,
+  w.add(e, 'buffer', {
+    attack: 0,
+    ranged: 0,
+    dash: 0,
+    skill: 0,
+    ultimate: 0,
+    switchSlot: -1,
+    switchTicks: 0,
   });
-  w.add(e, 'renderable', { kind: classId });
+  w.add(e, 'party', { members, active: 0, switchCooldown: 0, kills: 0 });
+  w.add(e, 'player', first.state);
+  w.add(e, 'health', first.health);
+  w.add(e, 'dash', first.dash);
+  w.add(e, 'combo', first.combo);
+  w.add(e, 'statuses', first.statuses);
+  w.add(e, 'renderable', { kind: first.classId });
   return e;
 }
 
@@ -93,7 +136,7 @@ export function spawnEnemy(
   });
   w.add(e, 'facing', { angle: sim.rng.spawn.range(-Math.PI, Math.PI) });
   w.add(e, 'team', 'enemy');
-  w.add(e, 'health', { hp, max: hp, invuln: 0, stagger: 0 });
+  w.add(e, 'health', { hp, max: hp, shield: 0, sinceHit: 9999, invuln: 0, stagger: 0 });
   w.add(e, 'statuses', { list: [] });
   w.add(e, 'mover', { ...def.mover });
   const alert = opts.alert ?? true;
@@ -121,14 +164,68 @@ export function spawnEnemy(
   return e;
 }
 
-type HitboxSpec = Omit<Hitbox, 'hit' | 'statuses' | 'creditPlayer'> &
-  Partial<Pick<Hitbox, 'statuses' | 'creditPlayer'>>;
+type HitboxSpec = Omit<Hitbox, 'hit' | 'statuses' | 'creditPlayer' | 'sourceClass'> &
+  Partial<Pick<Hitbox, 'statuses' | 'creditPlayer' | 'sourceClass'>>;
 
 export function spawnHitbox(sim: Sim, x: number, y: number, spec: HitboxSpec): Entity {
   const w = sim.world;
   const e = w.create();
   w.add(e, 'transform', transformAt(x, y));
-  w.add(e, 'hitbox', { statuses: [], creditPlayer: false, ...spec, hit: new Set() });
+  w.add(e, 'hitbox', {
+    statuses: [],
+    creditPlayer: false,
+    sourceClass: null,
+    ...spec,
+    hit: new Set(),
+  });
+  return e;
+}
+
+export interface PlayerProjectileSpec {
+  damage: number;
+  speed: number;
+  radius: number;
+  lifetimeTicks: number;
+  knockback: number;
+  pierce: number;
+  stagger: number;
+  kind: 'shuriken' | 'arcaneBolt' | 'frostOrb';
+  burst?: BurstSpec;
+  statuses?: readonly StatusApplication[];
+}
+
+export function spawnPlayerProjectile(
+  sim: Sim,
+  owner: Entity,
+  x: number,
+  y: number,
+  angle: number,
+  spec: PlayerProjectileSpec,
+): Entity {
+  const w = sim.world;
+  const classId = w.get(owner, 'player')?.classId ?? null;
+  const e = spawnHitbox(sim, x, y, {
+    owner,
+    team: 'player',
+    shape: { kind: 'circle', radius: spec.radius, offset: 0 },
+    angle,
+    damage: spec.damage,
+    knockback: spec.knockback,
+    stagger: spec.stagger,
+    delay: 0,
+    ticks: spec.lifetimeTicks,
+    attached: false,
+    canCrit: true,
+    sourceClass: classId,
+    statuses: spec.statuses ?? [],
+  });
+  w.add(e, 'velocity', { x: Math.cos(angle) * spec.speed, y: Math.sin(angle) * spec.speed });
+  w.add(e, 'projectile', {
+    pierceLeft: spec.pierce,
+    lifetime: spec.lifetimeTicks,
+    burst: spec.burst ?? null,
+  });
+  w.add(e, 'renderable', { kind: spec.kind });
   return e;
 }
 
@@ -139,26 +236,10 @@ export function spawnShuriken(
   y: number,
   angle: number,
 ): Entity {
-  const w = sim.world;
-  const player = w.req(owner, 'player');
-  const def = CLASSES[player.classId].ranged;
-  const e = spawnHitbox(sim, x, y, {
-    owner,
-    team: 'player',
-    shape: { kind: 'circle', radius: def.radius, offset: 0 },
-    angle,
-    damage: def.damage,
-    knockback: def.knockback,
-    stagger: def.stagger,
-    delay: 0,
-    ticks: def.lifetimeTicks,
-    attached: false,
-    canCrit: true,
+  return spawnPlayerProjectile(sim, owner, x, y, angle, {
+    ...SHADOW_BLADE.ranged,
+    kind: 'shuriken',
   });
-  w.add(e, 'velocity', { x: Math.cos(angle) * def.speed, y: Math.sin(angle) * def.speed });
-  w.add(e, 'projectile', { pierceLeft: def.pierce, lifetime: def.lifetimeTicks });
-  w.add(e, 'renderable', { kind: 'shuriken' });
-  return e;
 }
 
 export interface EnemyProjectileSpec {
@@ -195,7 +276,7 @@ export function spawnEnemyProjectile(
     statuses: spec.slowTicks > 0 ? [{ id: 'slow', ticks: spec.slowTicks }] : [],
   });
   w.add(e, 'velocity', { x: Math.cos(angle) * spec.speed, y: Math.sin(angle) * spec.speed });
-  w.add(e, 'projectile', { pierceLeft: 0, lifetime: spec.lifetimeTicks });
+  w.add(e, 'projectile', { pierceLeft: 0, lifetime: spec.lifetimeTicks, burst: null });
   w.add(e, 'renderable', { kind: 'boneArrow' });
   return e;
 }
@@ -207,6 +288,10 @@ export interface ExplosionSpec {
   delayTicks: number;
   poisonTicks?: number;
   creditPlayer: boolean;
+  /** Default 'neutral' (hurts everyone); player spells use 'player'. */
+  team?: Team;
+  statuses?: readonly StatusApplication[];
+  sourceClass?: ClassId | null;
 }
 
 /** Neutral area damage: hurts players and enemies alike, telegraphed while `delay` runs. */
@@ -219,7 +304,7 @@ export function spawnExplosion(
 ): Entity {
   const e = spawnHitbox(sim, x, y, {
     owner,
-    team: 'neutral',
+    team: spec.team ?? 'neutral',
     shape: { kind: 'circle', radius: spec.radius, offset: 0 },
     angle: 0,
     damage: spec.damage,
@@ -228,11 +313,31 @@ export function spawnExplosion(
     delay: spec.delayTicks,
     ticks: 1,
     attached: false,
-    canCrit: false,
-    statuses: spec.poisonTicks ? [{ id: 'poison', ticks: spec.poisonTicks }] : [],
+    canCrit: spec.team === 'player',
+    statuses: [
+      ...(spec.poisonTicks ? [{ id: 'poison' as const, ticks: spec.poisonTicks }] : []),
+      ...(spec.statuses ?? []),
+    ],
     creditPlayer: spec.creditPlayer,
+    sourceClass: spec.sourceClass ?? null,
   });
   sim.world.add(e, 'renderable', { kind: 'explosion' });
+  return e;
+}
+
+export function spawnZone(
+  sim: Sim,
+  kind: Zone['kind'],
+  owner: Entity,
+  x: number,
+  y: number,
+  radius: number,
+  ticks: number,
+): Entity {
+  const w = sim.world;
+  const e = w.create();
+  w.add(e, 'transform', transformAt(x, y));
+  w.add(e, 'zone', { kind, radius, ticks, maxTicks: ticks, owner });
   return e;
 }
 
@@ -244,9 +349,5 @@ export function spawnSmoke(
   radius: number,
   ticks: number,
 ): Entity {
-  const w = sim.world;
-  const e = w.create();
-  w.add(e, 'transform', transformAt(x, y));
-  w.add(e, 'zone', { kind: 'smoke', radius, ticks, maxTicks: ticks, owner });
-  return e;
+  return spawnZone(sim, 'smoke', owner, x, y, radius, ticks);
 }

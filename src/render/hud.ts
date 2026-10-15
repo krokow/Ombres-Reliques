@@ -1,17 +1,22 @@
 import { damp } from '../core/math';
 import { BIOMES } from '../data/biomes';
-import { CLASSES } from '../data/classes';
+import { classDef, type ClassId } from '../data/classes';
 import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
-import { keyLabel } from '../input/keyLabels';
+import { TEAM } from '../data/team';
 import type { Game } from '../game/game';
+import { keyLabel } from '../input/keyLabels';
+import { kitFor } from '../systems/kits';
 import type { Effects } from './effects';
 import { PALETTE } from './palette';
+
+const FONT = 'ui-monospace, Menlo, monospace';
 
 /** Screen-space HUD drawn on the canvas (cheap, crisp, no DOM churn). */
 export class Hud {
   /** HP shown on the trailing "lag" bar, eases down after damage. */
   private lagHp = -1;
+  private lagFor: ClassId | null = null;
 
   draw(
     ctx: CanvasRenderingContext2D,
@@ -25,10 +30,13 @@ export class Hud {
     const e = game.player;
     const health = w.req(e, 'health');
     const player = w.req(e, 'player');
-    const dash = w.req(e, 'dash');
-    const def = CLASSES[player.classId];
+    const party = w.req(e, 'party');
+    const def = classDef(player.classId);
 
-    if (this.lagHp < 0 || this.lagHp < health.hp) this.lagHp = health.hp;
+    if (this.lagFor !== player.classId || this.lagHp < health.hp) {
+      this.lagHp = health.hp;
+      this.lagFor = player.classId;
+    }
     this.lagHp += (health.hp - this.lagHp) * damp(4, dt);
 
     // Hurt / low-HP vignette.
@@ -49,85 +57,52 @@ export class Hud {
       ctx.fillRect(0, 0, width, height);
     }
 
+    // --- Main bar: HP (+ shield), energy, mana.
     const barW = Math.min(320, width - 40);
     const x = (width - barW) / 2;
     const y = height - 46;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(x - 6, y - 20, barW + 12, 44);
-
-    // HP.
+    ctx.fillRect(x - 6, y - 20, barW + 12, 46);
     ctx.fillStyle = PALETTE.hpBack;
     ctx.fillRect(x, y, barW, 12);
     ctx.fillStyle = PALETTE.hpLag;
     ctx.fillRect(x, y, (barW * this.lagHp) / health.max, 12);
     ctx.fillStyle = PALETTE.hp;
     ctx.fillRect(x, y, (barW * health.hp) / health.max, 12);
-    ctx.font = 'bold 10px ui-monospace, Menlo, monospace';
+    if (health.shield > 0) {
+      ctx.fillStyle = 'rgba(220, 235, 255, 0.75)';
+      ctx.fillRect(x, y, Math.min(barW, (barW * health.shield) / health.max), 4);
+    }
+    ctx.font = `bold 10px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = PALETTE.hudText;
-    ctx.fillText(`${Math.ceil(health.hp)} / ${health.max}`, width / 2, y + 6.5);
-
-    // Energy.
+    const shieldTxt = health.shield >= 1 ? ` +${Math.floor(health.shield)}` : '';
+    ctx.fillText(`${Math.ceil(health.hp)} / ${health.max}${shieldTxt}`, width / 2, y + 6.5);
     ctx.fillStyle = '#10232a';
     ctx.fillRect(x, y + 15, barW, 4);
     ctx.fillStyle = PALETTE.energy;
     ctx.fillRect(x, y + 15, (barW * player.energy) / def.maxEnergy, 4);
-
+    if (def.id === 'arcanist') {
+      ctx.fillStyle = '#121a33';
+      ctx.fillRect(x, y + 21, barW, 4);
+      ctx.fillStyle = '#5a8cff';
+      ctx.fillRect(x, y + 21, (barW * player.mana) / def.maxMana, 4);
+    }
     ctx.textAlign = 'left';
-    ctx.fillStyle = PALETTE.hudDim;
-    ctx.fillText(def.name.toUpperCase(), x, y - 12);
-
-    // Player statuses next to the class name.
-    const statuses = w.get(e, 'statuses')?.list ?? [];
-    statuses.forEach((st, i) => {
+    ctx.fillStyle = def.palette.trim;
+    ctx.fillText(def.name.toUpperCase(), x, y - 11);
+    (w.get(e, 'statuses')?.list ?? []).forEach((st, i) => {
       ctx.fillStyle = STATUSES[st.id].color;
-      ctx.fillRect(x + 100 + i * 10, y - 16, 7, 7);
+      ctx.fillRect(x + 110 + i * 10, y - 15, 7, 7);
     });
 
-    // Skill slots: dash charges, shuriken, veil, ultimate.
+    // --- Skill slots, provided by the active kit.
+    const slots = kitFor(player.classId).hud(game);
     const slot = 34;
     const gap = 8;
-    const sy = y - 22 - slot - 8;
-    const sx0 = width / 2 - (slot * 4 + gap * 3) / 2;
-    const slots: {
-      key: string;
-      fill: number;
-      ready: boolean;
-      label: string;
-      color: string;
-      count?: string;
-    }[] = [
-      {
-        key: keyLabel(KEY_BINDINGS.dash[0]),
-        fill: dash.charges >= def.dash.maxCharges ? 1 : dash.recharge / def.dash.rechargeTicks,
-        ready: dash.charges > 0,
-        label: 'Dash',
-        color: PALETTE.energy,
-        count: `${dash.charges}`,
-      },
-      {
-        key: keyLabel(KEY_BINDINGS.ranged[0]),
-        fill: 1 - player.rangedCooldown / def.ranged.cooldownTicks,
-        ready: player.rangedCooldown <= 0,
-        label: 'Shuriken',
-        color: PALETTE.shuriken,
-      },
-      {
-        key: keyLabel(KEY_BINDINGS.skill[0]),
-        fill: 1 - player.skillCooldown / def.veil.cooldownTicks,
-        ready: player.skillCooldown <= 0,
-        label: 'Voile',
-        color: '#8f86b8',
-      },
-      {
-        key: keyLabel(KEY_BINDINGS.ultimate[0]),
-        fill: player.energy / def.ultimate.energyCost,
-        ready: player.energy >= def.ultimate.energyCost,
-        label: 'Exécution',
-        color: PALETTE.crit,
-      },
-    ];
+    const sy = y - 22 - slot - 10;
+    const sx0 = width / 2 - (slot * slots.length + gap * (slots.length - 1)) / 2;
     slots.forEach((sl, i) => {
       const sx = sx0 + i * (slot + gap);
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -137,10 +112,9 @@ export class Hud {
       ctx.globalAlpha = sl.ready ? 0.85 : 0.6;
       ctx.fillRect(sx, sy + slot * (1 - f), slot, slot * f);
       ctx.globalAlpha = 1;
-      if (sl.ready && i === 3) {
-        // Ultimate ready: pulsing frame.
+      if (sl.ready && sl.key === 'ultimate') {
         ctx.strokeStyle = PALETTE.crit;
-        ctx.lineWidth = 2 + Math.sin(performance.now() / 120) * 1;
+        ctx.lineWidth = 2 + Math.sin(performance.now() / 120);
         ctx.strokeRect(sx - 1, sy - 1, slot + 2, slot + 2);
       }
       ctx.strokeStyle = 'rgba(255,255,255,0.25)';
@@ -148,25 +122,27 @@ export class Hud {
       ctx.strokeRect(sx + 0.5, sy + 0.5, slot - 1, slot - 1);
       ctx.fillStyle = sl.ready ? '#0b0910' : PALETTE.hudText;
       ctx.textAlign = 'center';
-      ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
-      ctx.fillText(sl.key, sx + slot / 2, sy + slot / 2 - 4);
-      ctx.font = '8px ui-monospace, Menlo, monospace';
+      ctx.font = `bold 11px ${FONT}`;
+      ctx.fillText(keyLabel(KEY_BINDINGS[sl.key][0]), sx + slot / 2, sy + slot / 2 - 4);
+      ctx.font = `8px ${FONT}`;
       ctx.fillText(sl.count ?? '', sx + slot / 2, sy + slot / 2 + 9);
       ctx.fillStyle = PALETTE.hudDim;
       ctx.fillText(sl.label, sx + slot / 2, sy + slot + 7);
     });
 
-    // Floor / kills (or arena wave).
+    this.drawParty(ctx, height, game);
+
+    // --- Floor / kills (or arena wave).
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
+    ctx.font = `bold 13px ${FONT}`;
     ctx.fillStyle = PALETTE.hudText;
     const where = game.dungeon
       ? `Étage ${game.level} · ${BIOMES[game.biome].name}`
       : `Vague ${game.waves.wave}`;
-    ctx.fillText(`${where}   Éliminations ${player.kills}`, width - 14, 12);
+    ctx.fillText(`${where}   Éliminations ${party.kills}`, width - 14, 12);
 
-    // Champion (mini-boss / boss) HP bar.
+    // --- Champion (mini-boss / boss) HP bar.
     const champ = w.query('champion', 'health')[0];
     if (champ) {
       const [, c, ch] = champ;
@@ -179,7 +155,7 @@ export class Hud {
       ctx.fillStyle = PALETTE.crit;
       ctx.fillRect(bx, 44, (bw * ch.hp) / ch.max, 8);
       ctx.textAlign = 'center';
-      ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
+      ctx.font = `bold 11px ${FONT}`;
       ctx.fillStyle = PALETTE.hudText;
       ctx.fillText(c.name, width / 2, 32);
     }
@@ -194,24 +170,25 @@ export class Hud {
       ctx.globalAlpha = Math.min(1, t * 3);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 34px ui-monospace, Menlo, monospace';
+      ctx.font = `bold 34px ${FONT}`;
       ctx.fillStyle = PALETTE.hudText;
       ctx.fillText(fx.banner.text, width / 2, height * 0.28 - (1 - t) * 10);
       ctx.globalAlpha = 1;
     }
 
-    if (health.hp <= 0) {
+    if (!game.playerAlive) {
       ctx.fillStyle = 'rgba(5,3,10,0.65)';
       ctx.fillRect(0, 0, width, height);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = PALETTE.hp;
-      ctx.font = 'bold 40px ui-monospace, Menlo, monospace';
-      ctx.fillText('Tombée dans l’ombre', width / 2, height / 2 - 30);
+      ctx.font = `bold 40px ${FONT}`;
+      ctx.fillText('L’équipe est tombée', width / 2, height / 2 - 30);
       ctx.fillStyle = PALETTE.hudText;
-      ctx.font = '15px ui-monospace, Menlo, monospace';
+      ctx.font = `15px ${FONT}`;
+      const reached = game.dungeon ? `Étage ${game.level}` : `Vague ${game.waves.wave}`;
       ctx.fillText(
-        `${game.dungeon ? `Étage ${game.level}` : `Vague ${game.waves.wave}`} · ${player.kills} éliminations · seed ${game.seed}`,
+        `${reached} · ${party.kills} éliminations · seed ${game.seed}`,
         width / 2,
         height / 2 + 12,
       );
@@ -222,5 +199,74 @@ export class Hud {
         height / 2 + 40,
       );
     }
+  }
+
+  /** Party portraits (1/2/3): HP, re-entry lockout, KO. */
+  private drawParty(ctx: CanvasRenderingContext2D, height: number, game: Game): void {
+    const party = game.world.req(game.player, 'party');
+    const size = 40;
+    party.members.forEach((m, i) => {
+      const def = classDef(m.classId);
+      const x = 14;
+      const y = height - 60 - (party.members.length - 1 - i) * (size + 12);
+      const active = i === party.active;
+      ctx.fillStyle = active ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - 3, y - 3, size + 96, size + 6);
+      // Portrait: class colours.
+      ctx.fillStyle = def.palette.body;
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = active ? 3 : 1.5;
+      ctx.strokeStyle = def.palette.trim;
+      ctx.stroke();
+      ctx.fillStyle = def.palette.eyes;
+      ctx.fillRect(x + size / 2 + 2, y + size / 2 - 4, 4, 3);
+      ctx.fillRect(x + size / 2 + 2, y + size / 2 + 2, 4, 3);
+      // Lockout / global cooldown sweep.
+      const lock = m.ko
+        ? 1
+        : !active
+          ? Math.max(
+              m.lockout / TEAM.reentryLockoutTicks,
+              party.switchCooldown / TEAM.switchCooldownTicks,
+            )
+          : 0;
+      if (lock > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        ctx.moveTo(x + size / 2, y + size / 2);
+        ctx.arc(
+          x + size / 2,
+          y + size / 2,
+          size / 2 - 2,
+          -Math.PI / 2,
+          -Math.PI / 2 + Math.PI * 2 * lock,
+        );
+        ctx.fill();
+      }
+      if (m.ko) {
+        ctx.strokeStyle = PALETTE.hp;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + 8, y + 8);
+        ctx.lineTo(x + size - 8, y + size - 8);
+        ctx.moveTo(x + size - 8, y + 8);
+        ctx.lineTo(x + 8, y + size - 8);
+        ctx.stroke();
+      }
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = `bold 11px ${FONT}`;
+      ctx.fillStyle = active ? def.palette.trim : PALETTE.hudText;
+      ctx.fillText(`${i + 1} ${def.name}`, x + size + 6, y + 2);
+      const bw = 82;
+      ctx.fillStyle = PALETTE.hpBack;
+      ctx.fillRect(x + size + 6, y + 20, bw, 6);
+      ctx.fillStyle = m.ko ? '#555' : PALETTE.hp;
+      ctx.fillRect(x + size + 6, y + 20, (bw * m.health.hp) / m.health.max, 6);
+      ctx.fillStyle = PALETTE.energy;
+      ctx.fillRect(x + size + 6, y + 29, (bw * m.state.energy) / def.maxEnergy, 3);
+    });
   }
 }

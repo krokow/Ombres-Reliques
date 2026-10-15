@@ -3,6 +3,7 @@ import type { RenderKind } from '../ecs/components';
 import type { StatusId } from '../data/statuses';
 import type { BiomeId } from '../data/biomes';
 import type { RoomType } from '../dungeon/floor';
+import type { ClassId } from '../data/classes';
 
 /**
  * One-way notifications from the simulation to presentation (VFX, audio, HUD).
@@ -34,13 +35,22 @@ export type GameEvent =
       byPlayer: boolean;
       /** Damage over time: no shake, small numbers. */
       dot: boolean;
+      /** Part of the damage soaked by a shield. */
+      absorbed: number;
     }
   | { type: 'kill'; target: Entity; kind: RenderKind; x: number; y: number; byPlayer: boolean }
   | { type: 'dashRefund'; x: number; y: number }
   | { type: 'windup'; entity: Entity }
   | { type: 'projectileWall'; x: number; y: number }
   | { type: 'enemyShoot'; x: number; y: number; angle: number }
-  | { type: 'explosion'; x: number; y: number; radius: number }
+  | {
+      type: 'explosion';
+      x: number;
+      y: number;
+      radius: number;
+      /** 'frost' | 'arcane' for player spells, 'plague' for enemy/neutral blasts. */
+      flavor: 'plague' | 'frost' | 'arcane';
+    }
   | { type: 'summon'; x: number; y: number }
   | { type: 'status'; target: Entity; id: StatusId }
   | { type: 'veil'; x: number; y: number; radius: number }
@@ -56,4 +66,19 @@ export type GameEvent =
   | { type: 'roomCleared'; room: number; roomType: RoomType }
   | { type: 'stairsOpen'; x: number; y: number }
   | { type: 'secretFound'; x: number; y: number }
-  | { type: 'floor'; level: number; biome: BiomeId };
+  | { type: 'floor'; level: number; biome: BiomeId }
+  | { type: 'switch'; from: ClassId; to: ClassId; x: number; y: number; forced: boolean }
+  | { type: 'ko'; classId: ClassId; x: number; y: number }
+  | { type: 'revive'; classIds: ClassId[]; x: number; y: number }
+  | { type: 'block'; x: number; y: number; angle: number }
+  | { type: 'parry'; x: number; y: number; angle: number }
+  | { type: 'shockwave'; x: number; y: number; radius: number; color: 'gold' | 'frost' | 'violet' }
+  | { type: 'taunt'; x: number; y: number; radius: number }
+  | {
+      type: 'cast';
+      x: number;
+      y: number;
+      angle: number;
+      spell: 'bolt' | 'empowered' | 'frost' | 'fire' | 'meteor';
+    }
+  | { type: 'interactFail'; x: number; y: number; reason: string };

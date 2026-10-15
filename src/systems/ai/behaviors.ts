@@ -48,6 +48,12 @@ function endRecovery(ctx: AgentCtx, cooldownTicks: number): void {
   setPhase(ai, ai.alert ? 'chase' : 'idle');
 }
 
+/** Taunted ranged enemies abandon their distance and walk up to the Guardian. */
+function approachWhenTaunted(ctx: AgentCtx): void {
+  if (ctx.dist > ctx.body.radius + ctx.playerRadius + 24) moveToward(ctx, ctx.px, ctx.py, 1, true);
+  else halt(ctx);
+}
+
 /** Chase → telegraphed windup (barely tracks: can be outflanked) → strike → recover. */
 export function meleeBehavior(ctx: AgentCtx, def: MeleeEnemyDef): void {
   const { ai, sim, t } = ctx;
@@ -145,7 +151,8 @@ export function rangedBehavior(ctx: AgentCtx, def: RangedEnemyDef): void {
     ai.blind = false;
     if (ai.phase !== 'chase') setPhase(ai, 'chase');
     turnTowards(ctx, angleTo(ctx, ctx.px, ctx.py), def.turnRate);
-    if (!ctx.canSee || ctx.dist > maxRange) moveToward(ctx, ctx.px, ctx.py, 1, true);
+    if (ctx.taunted) approachWhenTaunted(ctx);
+    else if (!ctx.canSee || ctx.dist > maxRange) moveToward(ctx, ctx.px, ctx.py, 1, true);
     else if (ctx.dist < minRange) moveAway(ctx, ctx.px, ctx.py, 1);
     else halt(ctx);
     if (ai.cooldown <= 0 && ctx.canSee && ctx.dist <= maxRange * 1.15) {
@@ -240,7 +247,8 @@ export function summonerBehavior(ctx: AgentCtx, def: SummonerEnemyDef): void {
   if (ctx.knows) {
     if (ai.phase !== 'chase') setPhase(ai, 'chase');
     turnTowards(ctx, angleTo(ctx, ctx.px, ctx.py), def.turnRate);
-    if (!ctx.canSee || ctx.dist > maxRange) moveToward(ctx, ctx.px, ctx.py, 1, true);
+    if (ctx.taunted) approachWhenTaunted(ctx);
+    else if (!ctx.canSee || ctx.dist > maxRange) moveToward(ctx, ctx.px, ctx.py, 1, true);
     else if (ctx.dist < minRange) moveAway(ctx, ctx.px, ctx.py, 1);
     else halt(ctx);
     if (canSummon && ctx.dist <= maxRange * 1.2) startAttack(ctx, 'channel', ctx.px, ctx.py, false);

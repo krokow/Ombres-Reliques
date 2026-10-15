@@ -117,7 +117,7 @@ describe('melee combat', () => {
     expect(game.events.some((e) => e.type === 'kill')).toBe(true);
     expect(dash.charges).toBe(SHADOW_BLADE.dash.refundOnKill);
     const player = game.world.req(game.player, 'player');
-    expect(player.kills).toBe(1);
+    expect(game.world.req(game.player, 'party').kills).toBe(1);
     // Energy fills from the kill AND from all damage dealt (design 1c).
     expect(player.energy).toBeCloseTo(
       SHADOW_BLADE.energyOnKill + ENEMIES.ghoul.maxHp * SHADOW_BLADE.energyPerDamage,
@@ -188,6 +188,7 @@ describe('determinism', () => {
     const script = new Rng(99);
     for (let i = 0; i < 1200; i++) {
       const input: InputFrame = {
+        ...emptyInput(),
         moveX: script.int(-1, 1),
         moveY: script.int(-1, 1),
         aimX: script.range(0, 960),

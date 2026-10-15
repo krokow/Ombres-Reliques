@@ -2,7 +2,7 @@ import { lerp } from '../core/math';
 import { Tile, type TileMap } from '../core/tilemap';
 import { hashString } from '../core/rng';
 import { BIOMES, type BiomeDef } from '../data/biomes';
-import { CLASSES } from '../data/classes';
+import { ARCANIST, CLASSES, GUARDIAN, SHADOW_BLADE } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef } from '../data/enemies';
 import { STATUSES } from '../data/statuses';
@@ -13,7 +13,14 @@ import { hasStatus } from '../systems/statuses';
 import type { Camera } from './camera';
 import type { Effects } from './effects';
 import { PALETTE } from './palette';
+import { applyAnim, type Animator } from './anim';
 import {
+  drawArcaneBolt,
+  drawArcanist,
+  drawFire,
+  drawFrostOrb,
+  drawGuardian,
+  swingPose,
   drawArcher,
   drawBloater,
   drawBoneArrow,
@@ -81,6 +88,7 @@ export class Renderer {
     game: Game,
     camera: Camera,
     fx: Effects,
+    anim: Animator,
     alpha: number,
     frameDt: number,
     opts: RenderOptions,
@@ -102,7 +110,11 @@ export class Renderer {
     ctx.drawImage(this.mapCanvas(game.map, pal), 0, 0);
     this.drawDynamicTiles(game, pal);
     this.drawRoomProps(game);
+    for (const [, z, t] of w.query('zone', 'transform')) {
+      if (z.kind === 'fire') drawFire(ctx, t.x, t.y, z.radius, z.ticks / z.maxTicks, this.time);
+    }
     this.drawTelegraphs(game, alpha);
+    fx.drawCorpses(ctx);
 
     for (const g of fx.ghosts) {
       const def = CLASSES.shadowBlade;
@@ -119,7 +131,7 @@ export class Renderer {
       const p = interp(t, alpha);
       drawables.push({
         y: p.y,
-        draw: () => this.drawActor(game, e, r.kind, p.x, p.y, body.radius, fx),
+        draw: () => this.drawActor(game, e, r.kind, p.x, p.y, body.radius, fx, anim),
       });
     }
     for (const [e, , t] of w.query('projectile', 'transform')) {
@@ -128,10 +140,22 @@ export class Renderer {
       const v = w.get(e, 'velocity');
       drawables.push({
         y: p.y,
-        draw: () =>
-          kind === 'boneArrow'
-            ? drawBoneArrow(ctx, p.x, p.y, Math.atan2(v?.y ?? 0, v?.x ?? 1))
-            : drawShuriken(ctx, p.x, p.y, 4, this.time),
+        draw: () => {
+          const angle = Math.atan2(v?.y ?? 0, v?.x ?? 1);
+          if (kind === 'boneArrow') drawBoneArrow(ctx, p.x, p.y, angle);
+          else if (kind === 'arcaneBolt') {
+            const hb = w.get(e, 'hitbox');
+            drawArcaneBolt(
+              ctx,
+              p.x,
+              p.y,
+              angle,
+              (hb?.shape.kind === 'circle' ? hb.shape.radius : 0) > 6,
+              this.time,
+            );
+          } else if (kind === 'frostOrb') drawFrostOrb(ctx, p.x, p.y, this.time);
+          else drawShuriken(ctx, p.x, p.y, 4, this.time);
+        },
       });
     }
     drawables.sort((a, b) => a.y - b.y);
@@ -139,7 +163,7 @@ export class Renderer {
 
     // Smoke is drawn over actors so it actually hides them.
     for (const [, z, t] of w.query('zone', 'transform')) {
-      drawSmoke(ctx, t.x, t.y, z.radius, z.ticks / z.maxTicks, this.time);
+      if (z.kind === 'smoke') drawSmoke(ctx, t.x, t.y, z.radius, z.ticks / z.maxTicks, this.time);
     }
 
     this.drawSlashes(game, fx, alpha);
@@ -159,6 +183,7 @@ export class Renderer {
     y: number,
     radius: number,
     fx: Effects,
+    anim: Animator,
   ): void {
     const ctx = this.ctx;
     const w = game.world;
@@ -179,71 +204,124 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    if (kind === 'shadowBlade') {
-      const health = w.req(e, 'health');
-      const v = w.req(e, 'velocity');
-      const dead = health.hp <= 0;
-      const executing = w.req(e, 'player').execution !== null;
-      // Blink during post-hurt i-frames (not during dash/ultimate i-frames).
-      const blinking =
-        health.invuln > 2 &&
-        w.req(e, 'dash').active === 0 &&
-        !executing &&
-        Math.floor(this.time * 20) % 2 === 0;
-      if (hasStatus(w, e, 'ambush')) {
-        ctx.strokeStyle = STATUSES.ambush.color;
-        ctx.globalAlpha = 0.5 + Math.sin(this.time * 12) * 0.3;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-      drawShadowBlade(ctx, x, y, radius, facing, CLASSES.shadowBlade.palette, {
-        flash,
-        time: this.time,
-        moveX: v.x,
-        moveY: v.y,
-        alpha: dead ? 0.25 : blinking ? 0.4 : 1,
-        invisible: hasStatus(w, e, 'invisible'),
-      });
+    ctx.save();
+    applyAnim(ctx, x, y, anim.get(e), this.time);
+
+    if (e === game.player) {
+      this.drawPlayer(game, kind, radius, facing, flash);
+      ctx.restore();
       return;
     }
 
     const ai = w.get(e, 'enemy');
-    if (!ai) return;
-    const def = enemyDef(ai.defId);
-    const progress = (total: number): number => Math.min(1, ai.phaseTicks / total);
-    switch (def.behavior) {
-      case 'melee':
-        drawGhoul(ctx, x, y, radius, facing, def.palette, {
-          flash,
-          time: this.time,
-          windup: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
-          striking: ai.phase === 'strike',
-          staggered: w.req(e, 'health').stagger > 0,
-        });
-        break;
-      case 'ranged':
-        drawArcher(ctx, x, y, radius, facing, def.palette, {
-          flash,
-          draw: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
-        });
-        break;
-      case 'kamikaze':
-        drawBloater(ctx, x, y, radius, def.palette, {
-          flash,
-          time: this.time,
-          fuse: ai.phase === 'fuse' ? progress(def.fuseTicks) : 0,
-        });
-        break;
-      case 'summoner':
-        drawCryptomancer(ctx, x, y, radius, facing, def.palette, {
-          flash,
-          time: this.time,
-          channel: ai.phase === 'channel' ? progress(def.channelTicks) : 0,
-        });
-        break;
+    if (ai) {
+      const def = enemyDef(ai.defId);
+      const progress = (total: number): number => Math.min(1, ai.phaseTicks / total);
+      switch (def.behavior) {
+        case 'melee':
+          drawGhoul(ctx, 0, 0, radius, facing, def.palette, {
+            flash,
+            time: this.time,
+            windup: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
+            striking: ai.phase === 'strike',
+            staggered: w.req(e, 'health').stagger > 0 || hasStatus(w, e, 'stun'),
+          });
+          break;
+        case 'ranged':
+          drawArcher(ctx, 0, 0, radius, facing, def.palette, {
+            flash,
+            draw: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
+          });
+          break;
+        case 'kamikaze':
+          drawBloater(ctx, 0, 0, radius, def.palette, {
+            flash,
+            time: this.time,
+            fuse: ai.phase === 'fuse' ? progress(def.fuseTicks) : 0,
+          });
+          break;
+        case 'summoner':
+          drawCryptomancer(ctx, 0, 0, radius, facing, def.palette, {
+            flash,
+            time: this.time,
+            channel: ai.phase === 'channel' ? progress(def.channelTicks) : 0,
+          });
+          break;
+      }
+      if (hasStatus(w, e, 'stun')) this.drawStunStars(radius);
+    }
+    ctx.restore();
+  }
+
+  private drawStunStars(radius: number): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#ffe14d';
+    for (let i = 0; i < 3; i++) {
+      const a = this.time * 5 + (i * Math.PI * 2) / 3;
+      ctx.fillRect(Math.cos(a) * radius * 0.9 - 1.5, -radius - 6 + Math.sin(a) * 3 - 1.5, 3, 3);
+    }
+  }
+
+  /** The active party member, posed from its live simulation state. */
+  private drawPlayer(
+    game: Game,
+    kind: RenderKind,
+    radius: number,
+    facing: number,
+    flash: boolean,
+  ): void {
+    const ctx = this.ctx;
+    const w = game.world;
+    const e = game.player;
+    const health = w.req(e, 'health');
+    const state = w.req(e, 'player');
+    const v = w.req(e, 'velocity');
+    const dead = health.hp <= 0;
+    // Blink during post-hurt i-frames (not during dash/ultimate i-frames).
+    const blinking =
+      health.invuln > 2 &&
+      w.req(e, 'dash').active === 0 &&
+      state.execution === null &&
+      Math.floor(this.time * 20) % 2 === 0;
+    const alpha = dead ? 0.25 : blinking ? 0.4 : 1;
+    if (hasStatus(w, e, 'ambush')) {
+      ctx.strokeStyle = STATUSES.ambush.color;
+      ctx.globalAlpha = 0.5 + Math.sin(this.time * 12) * 0.3;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    const swing = swingPose(game);
+    if (kind === 'shadowBlade') {
+      drawShadowBlade(ctx, 0, 0, radius, facing, SHADOW_BLADE.palette, {
+        flash,
+        time: this.time,
+        moveX: v.x,
+        moveY: v.y,
+        alpha,
+        invisible: hasStatus(w, e, 'invisible'),
+        swing,
+      });
+    } else if (kind === 'guardian') {
+      drawGuardian(ctx, radius, facing, GUARDIAN.palette, {
+        flash,
+        time: this.time,
+        alpha: hasStatus(w, e, 'invisible') ? alpha * 0.35 : alpha,
+        blocking: state.blockTicks >= 0,
+        swing,
+        shield: health.shield,
+      });
+    } else if (kind === 'arcanist') {
+      drawArcanist(ctx, radius, facing, ARCANIST.palette, {
+        flash,
+        time: this.time,
+        alpha: hasStatus(w, e, 'invisible') ? alpha * 0.35 : alpha,
+        cast: state.primaryCooldown / ARCANIST.bolt.cooldownTicks,
+        channel: state.meteors !== null,
+        mana: state.mana / ARCANIST.maxMana,
+      });
     }
   }
 
@@ -290,6 +368,25 @@ export class Renderer {
     for (const [e, hb, t] of w.query('hitbox', 'transform')) {
       if (hb.delay <= 0 || w.get(e, 'renderable')?.kind !== 'explosion') continue;
       if (hb.shape.kind !== 'circle') continue;
+      if (hb.team === 'player') {
+        // Friendly (meteor) markers: violet, with a shrinking ring = time to impact.
+        const k = Math.min(1, hb.delay / ARCANIST.ultimate.fallTicks);
+        ctx.strokeStyle = 'rgba(199, 125, 255, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, hb.shape.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(199, 125, 255, 0.15)';
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, hb.shape.radius * (1 - k), 0, Math.PI * 2);
+        ctx.fill();
+        // Falling rock.
+        ctx.fillStyle = '#ffb347';
+        ctx.beginPath();
+        ctx.arc(t.x + k * 40, t.y - k * 160, 6, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       this.telegraphCircle(t.x, t.y, hb.shape.radius, 1 - hb.delay / 20);
     }
   }

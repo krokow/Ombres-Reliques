@@ -27,6 +27,7 @@ export interface DungeonState {
   exploredVersion: number;
   stairs: { tx: number; ty: number } | null;
   descendRequested: boolean;
+  altarsUsed: Set<number>;
 }
 
 export function createDungeonState(floor: Floor): DungeonState {
@@ -43,6 +44,7 @@ export function createDungeonState(floor: Floor): DungeonState {
     exploredVersion: 0,
     stairs: null,
     descendRequested: false,
+    altarsUsed: new Set(),
   };
 }
 

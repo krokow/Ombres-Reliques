@@ -2,6 +2,7 @@ import { CLASSES } from '../data/classes';
 import { COMBAT } from '../data/combat';
 import type { Hitbox } from '../ecs/components';
 import type { Entity } from '../ecs/world';
+import { spawnExplosion } from '../game/factories';
 import type { Sim } from '../game/sim';
 import { isBehind, rollDamage, shapeHitsCircle } from './combatMath';
 import { dealDamage } from './damage';
@@ -27,11 +28,13 @@ export function resolveHitboxes(sim: Sim): void {
       continue;
     }
     if (w.get(he, 'renderable')?.kind === 'explosion') {
+      const frosty = hb.statuses.some((st) => st.id === 'slow');
       sim.events.push({
         type: 'explosion',
         x: ht.x,
         y: ht.y,
         radius: hb.shape.kind === 'circle' ? hb.shape.radius : 0,
+        flavor: hb.team === 'player' ? (frosty ? 'frost' : 'arcane') : 'plague',
       });
     }
 
@@ -44,13 +47,17 @@ export function resolveHitboxes(sim: Sim): void {
       hb.hit.add(te);
       applyHit(sim, hb, ht.x, ht.y, te);
       const proj = w.get(he, 'projectile');
-      if (proj && --proj.pierceLeft < 0) {
+      if (proj && (proj.burst || --proj.pierceLeft < 0)) {
+        burstProjectile(sim, he);
         w.destroy(he);
         break;
       }
     }
 
-    if (--hb.ticks <= 0) w.destroy(he);
+    if (--hb.ticks <= 0 && !w.isPendingDestroy(he)) {
+      burstProjectile(sim, he);
+      w.destroy(he);
+    }
   }
 }
 
@@ -59,21 +66,32 @@ function applyHit(sim: Sim, hb: Hitbox, ox: number, oy: number, target: Entity):
   const tt = w.req(target, 'transform');
   const byPlayer = hb.team === 'player' || hb.creditPlayer;
 
-  const attacker = w.get(hb.owner, 'player');
-  const def = attacker ? CLASSES[attacker.classId] : null;
-  const stats = hb.canCrit && def ? def : null;
+  // Stats come from the class that produced the hitbox, even if the player switched since.
+  const def = hb.sourceClass ? CLASSES[hb.sourceClass] : null;
+  const canCrit = hb.canCrit && def !== null && hb.team === 'player';
   const facing = w.get(target, 'facing');
   const backstab =
-    stats !== null &&
+    canCrit &&
+    def.id === 'shadowBlade' &&
     facing !== undefined &&
     isBehind(tt.x, tt.y, facing.angle, ox, oy, COMBAT.backstabHalfArc);
   // Leaving the smoke veil: the next landed attack is a guaranteed crit.
-  const ambush = stats !== null && hasStatus(w, hb.owner, 'ambush');
+  const ambush = canCrit && hasStatus(w, sim.player, 'ambush');
   if (ambush) {
-    removeStatus(w, hb.owner, 'ambush');
+    removeStatus(w, sim.player, 'ambush');
     sim.events.push({ type: 'ambushStrike', x: tt.x, y: tt.y });
   }
-  const roll = rollDamage(hb.damage, stats, backstab, sim.rng.combat, ambush);
+  const stats = canCrit
+    ? {
+        critChance: def.critChance,
+        critMultiplier: def.critMultiplier,
+        backstabMultiplier: def.id === 'shadowBlade' ? def.backstabMultiplier : def.critMultiplier,
+      }
+    : null;
+  let base = hb.damage;
+  // Arcanist passive: slowed targets take extra damage from its spells.
+  if (def?.id === 'arcanist' && hasStatus(w, target, 'slow')) base *= def.passive.slowedDamageMult;
+  const roll = rollDamage(base, stats, backstab, sim.rng.combat, ambush);
 
   let dx = tt.x - ox;
   let dy = tt.y - oy;
@@ -86,27 +104,51 @@ function applyHit(sim: Sim, hb: Hitbox, ox: number, oy: number, target: Entity):
     dy = Math.sin(hb.angle);
   }
 
-  for (const s of hb.statuses)
+  for (const s of hb.statuses) {
     applyStatus(sim, target, s.id, s.ticks, hb.creditPlayer ? sim.player : hb.owner);
+  }
 
-  dealDamage(sim, target, {
-    amount: roll.amount,
-    source: hb.owner,
-    byPlayer,
-    crit: roll.crit,
-    backstab,
-    dirX: dx,
-    dirY: dy,
-    knockback: hb.knockback,
-    stagger: hb.stagger,
-    dot: false,
-    originX: ox,
-    originY: oy,
-  });
-  // Passive: backstabs mark the target (more damage taken, Execution priority) for later hits.
-  if (backstab && def && w.isAlive(target) && !w.isPendingDestroy(target)) {
+  if (hb.damage > 0) {
+    dealDamage(sim, target, {
+      amount: roll.amount,
+      source: hb.owner,
+      byPlayer,
+      crit: roll.crit,
+      backstab,
+      dirX: dx,
+      dirY: dy,
+      knockback: hb.knockback,
+      stagger: hb.stagger,
+      dot: false,
+      originX: ox,
+      originY: oy,
+    });
+  }
+  // Shadow Blade passive: backstabs mark the target for later hits.
+  if (backstab && def?.id === 'shadowBlade' && w.isAlive(target) && !w.isPendingDestroy(target)) {
     applyStatus(sim, target, 'mark', def.passive.markTicks, hb.owner);
   }
+}
+
+/** Projectiles with a burst (frost orb) explode where they stop. */
+function burstProjectile(sim: Sim, e: Entity): void {
+  const w = sim.world;
+  const proj = w.get(e, 'projectile');
+  const hb = w.get(e, 'hitbox');
+  const t = w.get(e, 'transform');
+  if (!proj?.burst || !hb || !t) return;
+  const b = proj.burst;
+  proj.burst = null;
+  spawnExplosion(sim, hb.owner, t.x, t.y, {
+    radius: b.radius,
+    damage: b.damage,
+    knockback: b.knockback,
+    delayTicks: 0,
+    creditPlayer: hb.team === 'player',
+    team: hb.team,
+    statuses: b.statuses,
+    sourceClass: hb.sourceClass,
+  });
 }
 
 /** Projectiles die on walls and when their lifetime runs out (via hitbox ticks). */
@@ -115,6 +157,13 @@ export function updateProjectiles(sim: Sim): void {
   for (const [e, , t] of w.query('projectile', 'transform')) {
     if (sim.map.isSolidAt(t.x, t.y)) {
       sim.events.push({ type: 'projectileWall', x: t.x, y: t.y });
+      // Burst on the near side of the wall.
+      const v = w.get(e, 'velocity');
+      if (v) {
+        t.x -= v.x * sim.dt;
+        t.y -= v.y * sim.dt;
+      }
+      burstProjectile(sim, e);
       w.destroy(e);
     }
   }

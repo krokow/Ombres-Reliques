@@ -17,6 +17,11 @@ export interface InputFrame {
   dashPressed: boolean;
   skillPressed: boolean;
   ultimatePressed: boolean;
+  /** Secondary button held (Guardian's shield). */
+  secondaryHeld: boolean;
+  interactPressed: boolean;
+  /** Party slot requested this tick (0-2), or -1. */
+  switchTo: number;
 }
 
 export function emptyInput(): InputFrame {
@@ -31,5 +36,8 @@ export function emptyInput(): InputFrame {
     dashPressed: false,
     skillPressed: false,
     ultimatePressed: false,
+    secondaryHeld: false,
+    interactPressed: false,
+    switchTo: -1,
   };
 }

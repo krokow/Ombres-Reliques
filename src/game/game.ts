@@ -5,6 +5,8 @@ import { biomeForFloor, type BiomeId } from '../data/biomes';
 import { CLASSES } from '../data/classes';
 import { ENGINE } from '../data/config';
 import { DESCEND_HEAL } from '../data/dungeon';
+import { TEAM } from '../data/team';
+import type { ClassId } from '../data/classes';
 import { generateFloor } from '../dungeon/generate';
 import { World } from '../ecs/world';
 import type { Components, GameWorld } from '../ecs/components';
@@ -19,15 +21,10 @@ import {
 } from '../systems/dungeon';
 import { integrateMotion, separateBodies, snapshotTransforms } from '../systems/movement';
 import { FlowField } from '../systems/navigation';
-import {
-  isExecuting,
-  playerBuffer,
-  playerCombo,
-  playerDash,
-  playerMove,
-  playerRanged,
-} from '../systems/player';
-import { playerUltimate, playerVeil, updateZones } from '../systems/skills';
+import { kitFor } from '../systems/kits';
+import { activeClass, playerBuffer, playerMove } from '../systems/player';
+import { handleSwitchInput, koMembers, reviveAll, tickParty } from '../systems/team';
+import { updateZones } from '../systems/zones';
 import { tickStatuses } from '../systems/statuses';
 import { updateWaves, type WaveState } from '../systems/waves';
 import type { GameEvent } from './events';
@@ -41,6 +38,7 @@ export interface GameOptions {
   /** Arena only: automatic enemy waves (default true). */
   waves?: boolean;
   startLevel?: number;
+  party?: readonly ClassId[];
 }
 
 /**
@@ -74,7 +72,7 @@ export class Game implements Sim {
     this.mode = options.mode ?? 'dungeon';
     this.wavesEnabled = this.mode === 'arena' && (options.waves ?? true);
     this.level = options.startLevel ?? 1;
-    this.player = spawnPlayer(this, 'shadowBlade', 0, 0);
+    this.player = spawnPlayer(this, options.party ?? TEAM.defaultParty, 0, 0);
 
     if (this.mode === 'arena') {
       const { map, markers } = TileMap.fromLayout(TEST_ARENA.layout, ENGINE.tileSize);
@@ -111,15 +109,19 @@ export class Game implements Sim {
       this.hitstopTicks--;
       return;
     }
-    if (alive && isExecuting(this)) {
-      playerUltimate(this);
-    } else if (alive) {
-      playerMove(this, input);
-      playerDash(this, input);
-      playerCombo(this);
-      playerRanged(this);
-      playerVeil(this);
-      playerUltimate(this);
+    if (alive) {
+      tickParty(this);
+      const kit = kitFor(activeClass(this));
+      if (kit.busy(this)) {
+        kit.updateBusy(this, input);
+      } else {
+        handleSwitchInput(this);
+        // The kit may have changed with the switch.
+        const current = kitFor(activeClass(this));
+        playerMove(this, input, current.moveFactor(this));
+        current.update(this, input);
+      }
+      if (input.interactPressed) this.interact();
     } else {
       const v = this.world.req(this.player, 'velocity');
       v.x = 0;
@@ -142,12 +144,39 @@ export class Game implements Sim {
     if (this.dungeon?.descendRequested) this.descend();
   }
 
-  /** Takes the stairs: next floor, same character. */
+  /** Takes the stairs: next floor, the party heals a bit and KO'd members come back. */
   descend(): void {
     this.level++;
-    const h = this.world.req(this.player, 'health');
-    h.hp = Math.min(h.max, h.hp + h.max * DESCEND_HEAL);
+    for (const m of this.world.req(this.player, 'party').members) {
+      if (!m.ko) m.health.hp = Math.min(m.health.max, m.health.hp + m.health.max * DESCEND_HEAL);
+    }
+    reviveAll(this, TEAM.descendReviveFraction);
     this.loadFloor(this.level);
+  }
+
+  /**
+   * Interaction key. For now only the altar's first function: sacrifice part
+   * of the active character's HP to revive KO'd members (M6 extends altars).
+   */
+  interact(): void {
+    const d = this.dungeon;
+    const t = this.world.req(this.player, 'transform');
+    const room = d?.floor.rooms[d.currentRoom];
+    if (!d || !room || room.type !== 'altar') return;
+    const c = this.map.tileCenter(room.center.tx, room.center.ty);
+    if (Math.hypot(c.x + 16 - t.x, c.y + 16 - t.y) > TEAM.altarRevive.interactRange) return;
+    if (d.altarsUsed.has(room.id)) {
+      this.events.push({ type: 'interactFail', x: t.x, y: t.y, reason: 'L’autel est éteint' });
+      return;
+    }
+    if (koMembers(this).length === 0) {
+      this.events.push({ type: 'interactFail', x: t.x, y: t.y, reason: 'Personne à ramener' });
+      return;
+    }
+    const h = this.world.req(this.player, 'health');
+    h.hp = Math.max(1, Math.round(h.hp - h.max * TEAM.altarRevive.hpCostFraction));
+    reviveAll(this, TEAM.altarRevive.reviveFraction);
+    d.altarsUsed.add(room.id);
   }
 
   /** Replaces the map with a generated floor and clears every non-player entity. */
@@ -160,10 +189,13 @@ export class Game implements Sim {
     this.nav = new FlowField(floor.map);
     this.dungeon = createDungeonState(floor);
     this.placePlayer(floor.map.tileCenter(floor.spawn.tx, floor.spawn.ty));
-    const player = this.world.req(this.player, 'player');
-    player.execution = null;
-    player.inVeil = false;
-    this.world.req(this.player, 'combo').hitbox = null;
+    for (const m of this.world.req(this.player, 'party').members) {
+      m.state.execution = null;
+      m.state.meteors = null;
+      m.state.inVeil = false;
+      m.combo.hitbox = null;
+      m.combo.tick = -1;
+    }
     this.events.push({ type: 'floor', level, biome: floor.biome });
   }
 

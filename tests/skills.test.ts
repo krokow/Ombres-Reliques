@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SHADOW_BLADE } from '../src/data/classes';
 import { ENEMIES } from '../src/data/enemies';
 import { spawnEnemy } from '../src/game/factories';
-import { executionTargets } from '../src/systems/skills';
+import { executionTargets } from '../src/systems/kits/shadowBlade';
 import { applyStatus, hasStatus } from '../src/systems/statuses';
 import { run, runCollect, sandbox, SPAWN } from './helpers';
 

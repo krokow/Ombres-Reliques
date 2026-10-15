@@ -14,7 +14,7 @@ import type { Entity } from '../../ecs/world';
 import type { Sim } from '../../game/sim';
 import { steer } from '../movement';
 import { findPath } from '../pathfinding';
-import { smokeAt } from '../skills';
+import { smokeAt } from '../zones';
 import { hasStatus, moveMultiplier } from '../statuses';
 
 export interface Neighbor {
@@ -37,6 +37,8 @@ export interface AgentCtx {
   speedMult: number;
   damageMult: number;
   staggered: boolean;
+  /** Provoked by the Guardian: ranged enemies stop kiting and close in. */
+  taunted: boolean;
   neighbors: readonly Neighbor[];
   /** Currently knows where the player is (visible or tracked). */
   knows: boolean;
