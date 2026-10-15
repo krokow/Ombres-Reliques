@@ -22,7 +22,6 @@ export function enemyAI(sim: Sim): void {
   )) {
     if (w.isPendingDestroy(e)) continue;
     const def = enemyDef(ai.defId);
-    const elite = w.get(e, 'elite');
     ai.phaseTicks++;
     if (ai.cooldown > 0) ai.cooldown--;
     if (ai.repath > 0) ai.repath--;
@@ -39,8 +38,8 @@ export function enemyAI(sim: Sim): void {
       facing,
       mover,
       body,
-      speedMult: elite?.speedMult ?? 1,
-      damageMult: elite?.damageMult ?? 1,
+      speedMult: ai.speedMult,
+      damageMult: ai.damageMult,
       staggered,
       neighbors,
     });

@@ -1,4 +1,5 @@
 import { damp } from '../core/math';
+import { BIOMES } from '../data/biomes';
 import { CLASSES } from '../data/classes';
 import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
@@ -155,12 +156,33 @@ export class Hud {
       ctx.fillText(sl.label, sx + slot / 2, sy + slot + 7);
     });
 
-    // Wave / kills.
+    // Floor / kills (or arena wave).
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
     ctx.fillStyle = PALETTE.hudText;
-    ctx.fillText(`Vague ${game.waves.wave}   Éliminations ${player.kills}`, width - 14, 12);
+    const where = game.dungeon
+      ? `Étage ${game.level} · ${BIOMES[game.biome].name}`
+      : `Vague ${game.waves.wave}`;
+    ctx.fillText(`${where}   Éliminations ${player.kills}`, width - 14, 12);
+
+    // Champion (mini-boss / boss) HP bar.
+    const champ = w.query('champion', 'health')[0];
+    if (champ) {
+      const [, c, ch] = champ;
+      const bw = Math.min(420, width - 80);
+      const bx = (width - bw) / 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(bx - 4, 30, bw + 8, 26);
+      ctx.fillStyle = PALETTE.hpBack;
+      ctx.fillRect(bx, 44, bw, 8);
+      ctx.fillStyle = PALETTE.crit;
+      ctx.fillRect(bx, 44, (bw * ch.hp) / ch.max, 8);
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
+      ctx.fillStyle = PALETTE.hudText;
+      ctx.fillText(c.name, width / 2, 32);
+    }
 
     if (fx.ultFlash > 0) {
       ctx.fillStyle = `rgba(10, 0, 20, ${fx.ultFlash})`;
@@ -189,7 +211,7 @@ export class Hud {
       ctx.fillStyle = PALETTE.hudText;
       ctx.font = '15px ui-monospace, Menlo, monospace';
       ctx.fillText(
-        `Vague ${game.waves.wave} · ${player.kills} éliminations · seed ${game.seed}`,
+        `${game.dungeon ? `Étage ${game.level}` : `Vague ${game.waves.wave}`} · ${player.kills} éliminations · seed ${game.seed}`,
         width / 2,
         height / 2 + 12,
       );

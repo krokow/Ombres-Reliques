@@ -20,6 +20,7 @@ export class FlowField {
   private dist: Int32Array;
   private targetTx = -1;
   private targetTy = -1;
+  private mapVersion = -1;
 
   constructor(private readonly map: TileMap) {
     this.dist = new Int32Array(map.width * map.height).fill(-1);
@@ -27,7 +28,10 @@ export class FlowField {
 
   /** Recomputes only if the target moved to another tile. */
   update(tx: number, ty: number): void {
-    if (tx === this.targetTx && ty === this.targetTy) return;
+    // Doors and secret walls change the map: rebuild when it does.
+    if (tx === this.targetTx && ty === this.targetTy && this.map.version === this.mapVersion)
+      return;
+    this.mapVersion = this.map.version;
     this.targetTx = tx;
     this.targetTy = ty;
     const { map } = this;

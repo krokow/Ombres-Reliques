@@ -1,9 +1,21 @@
-export const Tile = { Floor: 0, Wall: 1 } as const;
+export const Tile = {
+  Floor: 0,
+  Wall: 1,
+  DoorOpen: 2,
+  DoorClosed: 3,
+  /** Breakable wall hiding a secret room. */
+  Cracked: 4,
+  Stairs: 5,
+} as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
+
+const SOLID: readonly boolean[] = [false, true, false, true, true, false];
 
 /** Grid of tiles in world space; tile (tx, ty) covers [tx*size, (tx+1)*size). */
 export class TileMap {
   readonly tiles: Uint8Array;
+  /** Bumped on every change, so caches (nav field, minimap…) know when to refresh. */
+  version = 0;
 
   constructor(
     readonly width: number,
@@ -47,12 +59,16 @@ export class TileMap {
   }
 
   set(tx: number, ty: number, tile: Tile): void {
-    if (this.inBounds(tx, ty)) this.tiles[ty * this.width + tx] = tile;
+    if (!this.inBounds(tx, ty)) return;
+    const i = ty * this.width + tx;
+    if (this.tiles[i] === tile) return;
+    this.tiles[i] = tile;
+    this.version++;
   }
 
   /** Out-of-bounds counts as solid so nothing escapes the map. */
   isSolid(tx: number, ty: number): boolean {
-    return this.get(tx, ty) === Tile.Wall;
+    return SOLID[this.get(tx, ty)] ?? true;
   }
 
   isSolidAt(x: number, y: number): boolean {

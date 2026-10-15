@@ -10,12 +10,14 @@ import { STATUSES, type StatusId } from './data/statuses';
 import { applyStatus } from './systems/statuses';
 import { loadKeyLayout } from './input/keyLabels';
 import { Game } from './game/game';
+import { revealAll } from './systems/dungeon';
 import { spawnGroup } from './systems/waves';
 import { emptyInput, type InputFrame } from './game/inputFrame';
 import { KeyboardMouse } from './input/keyboardMouse';
 import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Hud } from './render/hud';
+import { Minimap } from './render/minimap';
 import { Renderer } from './render/renderer';
 import { CommandRegistry } from './ui/commands';
 import { DebugOverlay } from './ui/debugOverlay';
@@ -41,13 +43,14 @@ const camera = new Camera();
 const input = new KeyboardMouse(canvas);
 const sfx = new Sfx();
 const hud = new Hud();
+const minimap = new Minimap();
 const commands = new CommandRegistry();
 const debug = new DebugOverlay(uiRoot, commands);
 let fx = new Effects();
 let game = newGame(initialSeed());
 
-function newGame(seed: string): Game {
-  const g = new Game(normalizeSeed(seed), clock.stepSeconds);
+function newGame(seed: string, mode: 'dungeon' | 'arena' = 'dungeon', startLevel = 1): Game {
+  const g = new Game(normalizeSeed(seed), clock.stepSeconds, { mode, startLevel });
   const t = g.world.req(g.player, 'transform');
   camera.snapTo(t.x, t.y);
   fx = new Effects();
@@ -122,6 +125,46 @@ function registerCommands(): void {
       return `Statut ${id} appliqué`;
     },
   });
+  commands.register('next', {
+    help: 'passe à l’étage suivant',
+    run: () => {
+      if (!game.dungeon) return 'Pas en mode donjon';
+      game.descend();
+      return `Étage ${game.level}`;
+    },
+  });
+  commands.register('floor', {
+    help: 'floor <n> — relance la run à l’étage n (même seed)',
+    run: ([n = '1']) => {
+      newGame(game.seed, 'dungeon', Math.max(1, Number(n) || 1));
+      return `Étage ${game.level}`;
+    },
+  });
+  commands.register('reveal', {
+    help: 'révèle la carte',
+    run: () => {
+      if (!game.dungeon) return 'Pas en mode donjon';
+      revealAll(game.dungeon);
+      return 'Carte révélée';
+    },
+  });
+  commands.register('tp', {
+    help: 'tp <start|combat|treasure|shop|altar|secret|miniboss|boss> — téléporte dans la salle',
+    run: ([type = 'boss']) => {
+      const room = game.dungeon?.floor.rooms.find((r) => r.type === type);
+      if (!room) return `Aucune salle ${type}`;
+      const c = game.map.tileCenter(room.center.tx, room.center.ty);
+      const t = game.world.req(game.player, 'transform');
+      t.x = t.prevX = c.x;
+      t.y = t.prevY = c.y;
+      camera.snapTo(c.x, c.y);
+      return `Téléporté : ${type}`;
+    },
+  });
+  commands.register('arena', {
+    help: 'arène de test (vagues infinies)',
+    run: () => (newGame(game.seed, 'arena'), 'Arène'),
+  });
   commands.register('killall', {
     help: 'détruit tous les ennemis',
     run: () => {
@@ -165,6 +208,7 @@ function sampleInput(): InputFrame {
 function handleMetaKeys(): void {
   if (input.consumePressed('toggleDebug')) debug.toggle();
   if (input.consumePressed('toggleHitboxes')) debug.showHitboxes = !debug.showHitboxes;
+  if (input.consumePressed('map')) minimap.expanded = !minimap.expanded;
   if (input.consumePressed('mute')) debug.print(sfx.toggleMute() ? 'Son coupé' : 'Son activé');
   input.suspended = debug.consoleOpen;
   if (!game.playerAlive) {
@@ -193,6 +237,10 @@ runLoop(clock, {
     const dt = Math.min(frameMs, 100) / 1000;
     fps.frame(frameMs);
     for (const ev of game.drainEvents()) {
+      if (ev.type === 'floor') {
+        const pt = game.world.req(game.player, 'transform');
+        camera.snapTo(pt.x, pt.y);
+      }
       fx.handle(ev, camera);
       sfx.onEvent(ev);
     }
@@ -213,6 +261,7 @@ runLoop(clock, {
     renderer.render(game, camera, fx, alpha, dt, { showHitboxes: debug.showHitboxes });
     renderer.screenSpace();
     hud.draw(renderer.ctx, renderer.width, renderer.height, game, fx, dt);
+    minimap.draw(renderer.ctx, renderer.width, renderer.height, game, performance.now() / 1000);
 
     debug.setLines([
       `FPS      ${fps.fps.toFixed(0)}`,
@@ -220,9 +269,10 @@ runLoop(clock, {
       `Entités  ${w.entityCount}`,
       `Seed     ${game.seed}`,
       `Joueur   ${t.x.toFixed(0)}, ${t.y.toFixed(0)}${game.godMode ? '  GOD' : ''}`,
+      `Étage    ${game.level}${game.dungeon ? ` (essai ${game.dungeon.floor.attempt}, ${game.dungeon.floor.rooms.length} salles)` : ''}`,
       ``,
       `ZQSD/WASD bouger · clic G combo · clic D shuriken · Espace dash`,
-      `A (AZERTY)/Q voile · R exécution · M son · F3/F4/² debug`,
+      `A (AZERTY)/Q voile · R exécution · Tab carte · M son · F3/F4/² debug`,
     ]);
   },
 });

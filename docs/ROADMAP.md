@@ -74,3 +74,28 @@
   `navigator.keyboard.getLayoutMap` quand disponible), sons dédiés.
 - Debug : `elite`, `ult`, `status`, chemins A* affichés avec F4 ; la console s'ouvre sans perdre de frappe.
 - 88 tests.
+
+## M3 – livré
+
+- **Génération (choix 1d)** `src/dungeon/generate.ts` : BSP (72×54 tuiles) → une salle par feuille →
+  couloirs en L de 2 tuiles reliant les sous-arbres + ~20 % de boucles → portes et graphe des salles
+  **déduits des tuiles** (robuste même quand un couloir traverse une salle).
+- **Rôles** : départ à une extrémité du graphe ; boss = cul-de-sac le plus profond (≥ 3 salles) dont
+  l'unique voisin devient la salle du mini-boss (point de passage obligatoire) ; boutique, autel,
+  1-2 trésors en priorité dans les culs-de-sac ; salle secrète derrière un mur fissuré.
+- **Habillage par biome (marche aléatoire)** : crypte = piliers, forêt corrompue = bords érodés +
+  bosquets, forge = érosion légère + éboulis. Tout obstacle qui couperait une salle est annulé.
+- **Validation** à chaque génération (sinon nouvel essai, déterministe) : tout est atteignable, le
+  secret seulement via son mur, le boss uniquement via le mini-boss.
+- **Rencontres** : déclenchées en entrant (loin des portes), composition seedée selon la taille de la
+  salle et l'étage ; **portes scellées seulement pour mini-boss et boss (choix 2c)** ; barre de PV du
+  champion ; escalier après le boss (il faut marcher dessus) → étage suivant (+25 % PV).
+- **Scaling par étage** (data) : PV ennemis +18 %/étage, dégâts +10 %/étage, plus d'ennemis, plus d'élites.
+- **Brouillard de guerre** (exploration en ligne de vue + salle révélée à l'entrée), **minimap** avec icônes
+  (B, M, $, T, A, ?) et carte étendue (Tab).
+- Props provisoires (coffre, boutique, autel) en attendant M6. Mur fissuré cassable par n'importe quelle
+  attaque du joueur.
+- Debug : `next`, `floor <n>`, `reveal`, `tp <type>`, `arena` ; F4 affiche aussi les chemins A*.
+- Tests : 300 seeds × 3 étages validés, déterminisme, couloirs ≥ 2 de large partout, boss derrière le
+  mini-boss, secrets, rencontres, portes, escalier, scaling, run complète déterministe — 103 tests.
+- Génération ≈ 2 ms par étage.

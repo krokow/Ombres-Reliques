@@ -18,6 +18,7 @@ export const KEY_BINDINGS = {
   confirm: ['Enter', 'NumpadEnter'],
   retrySameSeed: ['Backspace'],
   mute: ['KeyM'],
+  map: ['Tab'],
   toggleDebug: ['F3'],
   toggleHitboxes: ['F4'],
 } as const satisfies Record<string, readonly string[]>;

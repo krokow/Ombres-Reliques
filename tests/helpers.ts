@@ -5,7 +5,7 @@ import { emptyInput, type InputFrame } from '../src/game/inputFrame';
 export const DT = 1 / 60;
 
 export function sandbox(seed = 'TEST'): Game {
-  return new Game(seed, DT, { waves: false });
+  return new Game(seed, DT, { mode: 'arena', waves: false });
 }
 
 export function run(game: Game, ticks: number, input: Partial<InputFrame> = {}): void {

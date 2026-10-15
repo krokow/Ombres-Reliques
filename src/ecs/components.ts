@@ -124,14 +124,25 @@ export interface EnemyState {
   path: { tx: number; ty: number }[];
   pathGoal: number;
   repath: number;
+  /** Combined floor scaling × elite modifiers. */
+  damageMult: number;
+  speedMult: number;
 }
 
 export interface EliteState {
   mods: EliteModifierId[];
-  speedMult: number;
-  damageMult: number;
   lifesteal: number;
   explodesOnDeath: boolean;
+}
+
+/** Enemy spawned by a room encounter. */
+export interface Encounter {
+  room: number;
+}
+
+/** Headline enemy of a mini-boss/boss encounter (top-screen HP bar). */
+export interface Champion {
+  name: string;
 }
 
 export interface Minion {
@@ -214,6 +225,8 @@ export interface Components {
   enemy: EnemyState;
   elite: EliteState;
   minion: Minion;
+  encounter: Encounter;
+  champion: Champion;
   statuses: Statuses;
   zone: Zone;
   hitbox: Hitbox;

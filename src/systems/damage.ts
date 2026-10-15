@@ -108,7 +108,7 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
   const ai = w.get(target, 'enemy');
   if (ai) {
     const def = enemyDef(ai.defId);
-    const damageMult = w.get(target, 'elite')?.damageMult ?? 1;
+    const damageMult = ai.damageMult;
     if (def.behavior === 'kamikaze') {
       spawnExplosion(sim, target, tt.x, tt.y, {
         radius: def.explosion.radius,

@@ -1,6 +1,8 @@
 import { Rng } from '../core/rng';
 import type { Entity } from '../ecs/world';
+import { BIOMES } from '../data/biomes';
 import { FEEL } from '../data/combat';
+import type { RoomType } from '../dungeon/floor';
 import { ENEMIES, isEnemyId } from '../data/enemies';
 import type { GameEvent } from '../game/events';
 import type { Camera } from './camera';
@@ -68,6 +70,15 @@ interface Ring {
   life: number;
   maxLife: number;
 }
+
+const ROOM_NAMES: Partial<Record<RoomType, string>> = {
+  treasure: 'Salle au trésor',
+  shop: 'Boutique',
+  altar: 'Autel',
+  secret: 'Salle secrète',
+  miniboss: 'Antre du gardien',
+  boss: 'Salle du maître',
+};
 
 /**
  * Purely cosmetic effects driven by sim events. Uses its own RNG so visuals
@@ -236,6 +247,42 @@ export class Effects {
         this.blinks.push({ ...ev, life: 0.25, maxLife: 0.25 });
         this.burst(ev.toX, ev.toY, 10, PALETTE.refund, 160, 0.3, 0, Math.PI * 2, true);
         camera.addTrauma(FEEL.shake.execution);
+        break;
+      case 'roomEnter': {
+        const name = ROOM_NAMES[ev.roomType];
+        if (ev.firstVisit && name) this.banner = { text: name, life: 1.6, maxLife: 1.6 };
+        break;
+      }
+      case 'doorsLocked':
+        camera.addTrauma(0.35);
+        this.banner = { text: 'Les portes se scellent', life: 1.4, maxLife: 1.4 };
+        break;
+      case 'roomCleared':
+        if (ev.roomType === 'miniboss')
+          this.banner = { text: 'Gardien vaincu', life: 1.6, maxLife: 1.6 };
+        break;
+      case 'stairsOpen':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 60,
+          color: PALETTE.summon,
+          life: 0.8,
+          maxLife: 0.8,
+        });
+        this.banner = { text: 'L’escalier s’ouvre', life: 2, maxLife: 2 };
+        break;
+      case 'secretFound':
+        camera.addTrauma(0.3);
+        this.burst(ev.x, ev.y, 24, PALETTE.dust, 200, 0.7, 0, Math.PI * 2);
+        this.banner = { text: 'Passage secret !', life: 1.6, maxLife: 1.6 };
+        break;
+      case 'floor':
+        this.banner = {
+          text: `Étage ${ev.level} — ${BIOMES[ev.biome].name}`,
+          life: 2.4,
+          maxLife: 2.4,
+        };
         break;
       case 'status':
       case 'windup':

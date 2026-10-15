@@ -1,6 +1,8 @@
 import type { Entity } from '../ecs/world';
 import type { RenderKind } from '../ecs/components';
 import type { StatusId } from '../data/statuses';
+import type { BiomeId } from '../data/biomes';
+import type { RoomType } from '../dungeon/floor';
 
 /**
  * One-way notifications from the simulation to presentation (VFX, audio, HUD).
@@ -48,4 +50,10 @@ export type GameEvent =
   | { type: 'ultFail'; x: number; y: number; reason: 'energy' | 'noTarget' }
   | { type: 'blink'; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'playerDeath'; x: number; y: number }
-  | { type: 'wave'; wave: number; count: number };
+  | { type: 'wave'; wave: number; count: number }
+  | { type: 'roomEnter'; room: number; roomType: RoomType; firstVisit: boolean }
+  | { type: 'doorsLocked'; room: number }
+  | { type: 'roomCleared'; room: number; roomType: RoomType }
+  | { type: 'stairsOpen'; x: number; y: number }
+  | { type: 'secretFound'; x: number; y: number }
+  | { type: 'floor'; level: number; biome: BiomeId };

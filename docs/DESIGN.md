@@ -85,6 +85,27 @@
 - HUD sur canvas (pas de churn DOM), overlay debug/console en DOM (texte net, saisie native).
 - Audio : oscillateurs + bruit filtré, `AudioContext` créé au premier geste (politique autoplay).
 
+## Donjon (M3)
+
+- **BSP + marche aléatoire (choix 1d)** : la BSP garantit une structure lisible et des couloirs
+  propres ; la marche aléatoire ne fait qu'« habiller » (bords, couverture) et ne peut jamais casser
+  la connectivité (chaque groupe d'obstacles est annulé s'il coupe sa salle, l'érosion ne touche ni
+  couloir ni autre salle et reste à ≤ 2 tuiles du rectangle d'origine).
+- **Graphe lu depuis les tuiles** plutôt que depuis la liste des couloirs creusés : un couloir qui
+  traverse une salle crée bien la connexion réelle.
+- **Mini-boss obligatoire** : la salle du boss est un cul-de-sac dont l'unique voisin est la salle du
+  mini-boss ; comme celle-ci se scelle à l'entrée, impossible de l'éviter.
+- **Portes (choix 2c)** : ouvertes partout sauf mini-boss/boss, scellées dès que le joueur est à plus de
+  1,5 tuile de toute porte (les corps dans l'encadrement sont repoussés à l'intérieur).
+- **Rencontres à l'entrée** (et non pré-placées) : moins d'entités actives, et le tirage seedé reste
+  stable quel que soit l'ordre d'exploration (flux RNG `spawn`).
+- **Escalier** : il faut _marcher_ dessus (pas de descente surprise si on se trouve au centre quand
+  le boss meurt).
+- **Rendu** : les tuiles statiques sont pré-rendues ; portes, mur fissuré et escalier sont dessinés à
+  chaque frame (pas d'invalidation coûteuse du cache). Version de la tilemap → le flow field se
+  recalcule quand une porte change.
+- Biome par étage provisoire (1 étage = 1 biome) ; M7 donnera plusieurs étages et un bestiaire par biome.
+
 ## Dépendances
 
 Uniquement dev : vite, typescript, vitest, eslint (+ @eslint/js, typescript-eslint,

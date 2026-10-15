@@ -184,7 +184,7 @@ describe('ghoul AI', () => {
 
 describe('determinism', () => {
   function scripted(seed: string): string {
-    const game = new Game(seed, DT);
+    const game = new Game(seed, DT, { mode: 'arena' });
     const script = new Rng(99);
     for (let i = 0; i < 1200; i++) {
       const input: InputFrame = {

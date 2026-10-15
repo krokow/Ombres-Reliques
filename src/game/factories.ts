@@ -1,4 +1,5 @@
 import { CLASSES, type ClassId } from '../data/classes';
+import { DUNGEON } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
 import { transformAt, type Hitbox } from '../ecs/components';
@@ -39,6 +40,8 @@ export interface SpawnEnemyOptions {
   summoner?: Entity;
   /** Knows where the player is from the start (arena waves). Default true. */
   alert?: boolean;
+  /** Dungeon floor, for HP/damage scaling (default 1). */
+  level?: number;
 }
 
 export function spawnEnemy(
@@ -52,15 +55,13 @@ export function spawnEnemy(
   const def = enemyDef(id);
   const mods = opts.elite ?? [];
   const isElite = mods.length > 0;
-  let hp = def.maxHp * (isElite ? ELITE.hpMult : 1);
+  const level = opts.level ?? 1;
+  let hp =
+    def.maxHp * (isElite ? ELITE.hpMult : 1) * (1 + DUNGEON.scaling.hpPerFloor * (level - 1));
   let weight = def.weight;
-  const elite = {
-    mods: [...mods],
-    speedMult: 1,
-    damageMult: 1,
-    lifesteal: 0,
-    explodesOnDeath: false,
-  };
+  let speedMult = 1;
+  let damageMult = 1 + DUNGEON.scaling.damagePerFloor * (level - 1);
+  const elite = { mods: [...mods], lifesteal: 0, explodesOnDeath: false };
   for (const m of mods) {
     const mod: {
       hpMult?: number;
@@ -72,8 +73,8 @@ export function spawnEnemy(
     } = ELITE_MODIFIERS[m];
     hp *= mod.hpMult ?? 1;
     weight *= mod.weightMult ?? 1;
-    elite.speedMult *= mod.speedMult ?? 1;
-    elite.damageMult *= mod.damageMult ?? 1;
+    speedMult *= mod.speedMult ?? 1;
+    damageMult *= mod.damageMult ?? 1;
     elite.lifesteal += mod.lifesteal ?? 0;
     elite.explodesOnDeath ||= mod.explodesOnDeath ?? false;
   }
@@ -111,6 +112,8 @@ export function spawnEnemy(
     path: [],
     pathGoal: -1,
     repath: 0,
+    damageMult,
+    speedMult,
   });
   if (isElite) w.add(e, 'elite', elite);
   if (opts.summoner !== undefined) w.add(e, 'minion', { summoner: opts.summoner });

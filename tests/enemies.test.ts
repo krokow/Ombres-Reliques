@@ -195,7 +195,7 @@ describe('search with A*', () => {
 describe('waves', () => {
   it('compositions are seeded and unlock enemy types by wave', () => {
     const roll = (seed: string, wave: number) =>
-      rollWave(new Game(seed, DT, { waves: false }), wave);
+      rollWave(new Game(seed, DT, { mode: 'arena', waves: false }), wave);
     expect(roll('W', 5)).toEqual(roll('W', 5));
     expect(roll('W', 1).every((c) => c.id === 'ghoul' && c.elite.length === 0)).toBe(true);
   });

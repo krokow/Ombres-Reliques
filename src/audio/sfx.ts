@@ -20,7 +20,11 @@ type SoundName =
   | 'explosion'
   | 'shoot'
   | 'summon'
-  | 'tick';
+  | 'tick'
+  | 'doors'
+  | 'cleared'
+  | 'secret'
+  | 'descend';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -85,6 +89,15 @@ export class Sfx {
         return this.play('shoot');
       case 'summon':
         return this.play('summon');
+      case 'doorsLocked':
+        return this.play('doors');
+      case 'roomCleared':
+      case 'stairsOpen':
+        return this.play('cleared');
+      case 'secretFound':
+        return this.play('secret');
+      case 'floor':
+        return this.play('descend');
       case 'kill':
         return this.play('kill');
       case 'dash':
@@ -169,6 +182,22 @@ export class Sfx {
       case 'summon':
         this.tone(t, 'sine', 220, 330, 0.4, 0.15);
         this.tone(t + 0.1, 'sine', 233, 349, 0.4, 0.12);
+        break;
+      case 'doors':
+        this.tone(t, 'square', 80, 60, 0.4, 0.3);
+        this.noiseSweep(t, 0.4, 800, 200, 0.4, 'lowpass');
+        break;
+      case 'cleared':
+        this.tone(t, 'triangle', 523, 523, 0.12, 0.15);
+        this.tone(t + 0.1, 'triangle', 659, 659, 0.12, 0.15);
+        this.tone(t + 0.2, 'triangle', 784, 784, 0.25, 0.15);
+        break;
+      case 'secret':
+        this.noiseSweep(t, 0.4, 3000, 300, 0.4, 'lowpass');
+        this.tone(t + 0.2, 'sine', 880, 1760, 0.3, 0.15);
+        break;
+      case 'descend':
+        this.tone(t, 'sine', 440, 110, 0.8, 0.25);
         break;
       case 'tick':
         this.tone(t, 'sine', 300, 250, 0.04, 0.08);

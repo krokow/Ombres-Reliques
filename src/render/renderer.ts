@@ -1,6 +1,7 @@
 import { lerp } from '../core/math';
 import { Tile, type TileMap } from '../core/tilemap';
 import { hashString } from '../core/rng';
+import { BIOMES, type BiomeDef } from '../data/biomes';
 import { CLASSES } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef } from '../data/enemies';
@@ -28,6 +29,8 @@ export interface RenderOptions {
   showHitboxes: boolean;
 }
 
+type BiomePalette = BiomeDef['palette'];
+
 interface Drawable {
   y: number;
   draw(): void;
@@ -50,7 +53,8 @@ export class Renderer {
   private dpr = 1;
   width = 0;
   height = 0;
-  private mapCache: { map: TileMap; canvas: HTMLCanvasElement } | null = null;
+  private mapCache: { map: TileMap; palette: BiomePalette; canvas: HTMLCanvasElement } | null =
+    null;
   private time = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -85,7 +89,8 @@ export class Renderer {
     const w = game.world;
     this.time += frameDt;
     this.screenSpace();
-    ctx.fillStyle = PALETTE.background;
+    const pal = BIOMES[game.biome].palette;
+    ctx.fillStyle = pal.background;
     ctx.fillRect(0, 0, this.width, this.height);
 
     ctx.save();
@@ -94,7 +99,9 @@ export class Renderer {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x + camera.shakeX, -camera.y + camera.shakeY);
 
-    ctx.drawImage(this.mapCanvas(game.map), 0, 0);
+    ctx.drawImage(this.mapCanvas(game.map, pal), 0, 0);
+    this.drawDynamicTiles(game, pal);
+    this.drawRoomProps(game);
     this.drawTelegraphs(game, alpha);
 
     for (const g of fx.ghosts) {
@@ -137,6 +144,7 @@ export class Renderer {
 
     this.drawSlashes(game, fx, alpha);
     fx.drawParticles(ctx);
+    this.drawFog(game, camera, pal);
     this.drawEnemyBars(game, alpha);
     if (opts.showHitboxes) this.drawHitboxes(game);
     fx.drawTexts(ctx);
@@ -428,26 +436,30 @@ export class Renderer {
     }
   }
 
-  /** Static tiles are pre-rendered once per map. */
-  private mapCanvas(map: TileMap): HTMLCanvasElement {
-    if (this.mapCache?.map === map) return this.mapCache.canvas;
+  /** Static tiles are pre-rendered once per map (doors, cracks and stairs are drawn per frame). */
+  private mapCanvas(map: TileMap, pal: BiomePalette): HTMLCanvasElement {
+    if (this.mapCache?.map === map && this.mapCache.palette === pal) return this.mapCache.canvas;
     const s = map.tileSize;
     const canvas = document.createElement('canvas');
     canvas.width = map.width * s;
     canvas.height = map.height * s;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D unavailable');
+    const wallAt = (tx: number, ty: number): boolean => {
+      const t = map.get(tx, ty);
+      return !map.inBounds(tx, ty) || t === Tile.Wall || t === Tile.Cracked;
+    };
     for (let ty = 0; ty < map.height; ty++) {
       for (let tx = 0; tx < map.width; tx++) {
         const x = tx * s;
         const y = ty * s;
         // Visual-only hash: deterministic per tile without touching gameplay RNG.
         const h = hashString(`${tx},${ty}`);
-        if (map.get(tx, ty) === Tile.Floor) {
-          ctx.fillStyle = (tx + ty) % 2 === 0 ? PALETTE.floorA : PALETTE.floorB;
+        if (!wallAt(tx, ty)) {
+          ctx.fillStyle = (tx + ty) % 2 === 0 ? pal.floorA : pal.floorB;
           ctx.fillRect(x, y, s, s);
           if (h % 7 === 0) {
-            ctx.strokeStyle = PALETTE.floorCrack;
+            ctx.strokeStyle = pal.floorDetail;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(x + (h % s), y + 4);
@@ -455,20 +467,142 @@ export class Renderer {
             ctx.lineTo(x + ((h >> 10) % s), y + s - 4);
             ctx.stroke();
           }
-        } else {
-          ctx.fillStyle = PALETTE.wallFace;
+          continue;
+        }
+        let nearFloor = false;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) if (!wallAt(tx + dx, ty + dy)) nearFloor = true;
+        if (!nearFloor) {
+          // Deep rock: plain background so rooms and corridors read clearly.
+          ctx.fillStyle = pal.background;
           ctx.fillRect(x, y, s, s);
-          ctx.fillStyle = PALETTE.wallTop;
-          ctx.fillRect(x, y, s, s - 8);
-          // Light edge where a wall borders floor, for readability.
-          ctx.fillStyle = PALETTE.wallEdge;
-          if (!map.isSolid(tx, ty - 1)) ctx.fillRect(x, y, s, 2);
-          if (!map.isSolid(tx - 1, ty)) ctx.fillRect(x, y, 2, s - 8);
-          if (!map.isSolid(tx + 1, ty)) ctx.fillRect(x + s - 2, y, 2, s - 8);
+          continue;
+        }
+        ctx.fillStyle = pal.wallFace;
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = pal.wallTop;
+        ctx.fillRect(x, y, s, s - 8);
+        // Light edge where a wall borders floor, for readability.
+        ctx.fillStyle = pal.wallEdge;
+        if (!wallAt(tx, ty - 1)) ctx.fillRect(x, y, s, 2);
+        if (!wallAt(tx - 1, ty)) ctx.fillRect(x, y, 2, s - 8);
+        if (!wallAt(tx + 1, ty)) ctx.fillRect(x + s - 2, y, 2, s - 8);
+      }
+    }
+    this.mapCache = { map, palette: pal, canvas };
+    return canvas;
+  }
+
+  /** Doors, cracked walls and stairs: tiles that change during play. */
+  private drawDynamicTiles(game: Game, pal: BiomePalette): void {
+    const d = game.dungeon;
+    if (!d) return;
+    const ctx = this.ctx;
+    const map = game.map;
+    const s = map.tileSize;
+    for (const room of d.floor.rooms) {
+      for (const door of room.doors) {
+        const x = door.tx * s;
+        const y = door.ty * s;
+        if (map.get(door.tx, door.ty) === Tile.DoorClosed) {
+          ctx.fillStyle = '#2a1f1a';
+          ctx.fillRect(x, y, s, s);
+          ctx.fillStyle = '#9a8f88';
+          for (let i = 0; i < 4; i++) ctx.fillRect(x + 3 + i * 8, y + 2, 3, s - 4);
+          ctx.fillRect(x + 1, y + s / 2 - 2, s - 2, 3);
+        } else {
+          ctx.fillStyle = pal.wallEdge;
+          ctx.globalAlpha = 0.35;
+          ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+          ctx.globalAlpha = 1;
         }
       }
     }
-    this.mapCache = { map, canvas };
-    return canvas;
+    for (const c of d.floor.cracked) {
+      if (map.get(c.tx, c.ty) !== Tile.Cracked) continue;
+      const x = c.tx * s;
+      const y = c.ty * s;
+      ctx.strokeStyle = '#0b0910';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + 4);
+      ctx.lineTo(x + 14, y + 12);
+      ctx.lineTo(x + 10, y + 20);
+      ctx.lineTo(x + 20, y + 26);
+      ctx.moveTo(x + 14, y + 12);
+      ctx.lineTo(x + 24, y + 9);
+      ctx.stroke();
+    }
+    if (d.stairs) {
+      const x = d.stairs.tx * s;
+      const y = d.stairs.ty * s;
+      const glow = 0.5 + Math.sin(this.time * 4) * 0.3;
+      ctx.fillStyle = '#05040a';
+      ctx.fillRect(x - 4, y - 4, s + 8, s + 8);
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = `rgba(155, 123, 255, ${glow * (1 - i * 0.2)})`;
+        ctx.fillRect(x - 2 + i * 3, y + i * 8, s + 4 - i * 6, 5);
+      }
+    }
+  }
+
+  /** Placeholder props for special rooms until their content lands (M6). */
+  private drawRoomProps(game: Game): void {
+    const d = game.dungeon;
+    if (!d) return;
+    const ctx = this.ctx;
+    const s = game.map.tileSize;
+    for (const room of d.floor.rooms) {
+      const c = game.map.tileCenter(room.center.tx, room.center.ty);
+      const x = c.x + s / 2;
+      const y = c.y + s / 2;
+      if (room.type === 'treasure' || room.type === 'secret') {
+        ctx.fillStyle = '#6b4a24';
+        ctx.fillRect(x - 12, y - 8, 24, 16);
+        ctx.fillStyle = '#e0b84d';
+        ctx.fillRect(x - 12, y - 2, 24, 3);
+        ctx.fillRect(x - 2, y - 4, 4, 6);
+      } else if (room.type === 'shop') {
+        for (let i = -1; i <= 1; i++) {
+          ctx.fillStyle = '#3a3350';
+          ctx.fillRect(x + i * 30 - 8, y - 6, 16, 14);
+          ctx.fillStyle = ['#6fd0ff', '#ffd34d', '#ff6b8b'][i + 1] ?? '#fff';
+          ctx.beginPath();
+          ctx.arc(x + i * 30, y - 12 + Math.sin(this.time * 3 + i) * 2, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (room.type === 'altar') {
+        ctx.fillStyle = '#4a3a5e';
+        ctx.fillRect(x - 16, y - 6, 32, 14);
+        ctx.fillStyle = '#c77dff';
+        ctx.globalAlpha = 0.5 + Math.sin(this.time * 2) * 0.3;
+        ctx.beginPath();
+        ctx.arc(x, y - 14, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  /** Unexplored tiles are hidden (fog of war). */
+  private drawFog(game: Game, camera: Camera, pal: BiomePalette): void {
+    const d = game.dungeon;
+    if (!d) return;
+    const ctx = this.ctx;
+    const map = game.map;
+    const s = map.tileSize;
+    const halfW = this.width / 2 / camera.zoom + s;
+    const halfH = this.height / 2 / camera.zoom + s;
+    const x0 = Math.max(0, Math.floor((camera.x - halfW) / s));
+    const x1 = Math.min(map.width - 1, Math.ceil((camera.x + halfW) / s));
+    const y0 = Math.max(0, Math.floor((camera.y - halfH) / s));
+    const y1 = Math.min(map.height - 1, Math.ceil((camera.y + halfH) / s));
+    ctx.fillStyle = pal.background;
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (!d.floor.explored[ty * map.width + tx])
+          ctx.fillRect(tx * s - 0.5, ty * s - 0.5, s + 1, s + 1);
+      }
+    }
   }
 }

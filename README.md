@@ -22,6 +22,7 @@ moteur maison (ECS + boucle à pas fixe), zéro asset externe.
 src/
   core/     RNG seedable, boucle à pas fixe, maths — sans DOM
   ecs/      World générique + définition des composants
+  dungeon/  génération procédurale des étages (BSP + marche aléatoire, validation)
   systems/  logique de simulation (fonctions pures sur le World)
   game/     orchestration de la simulation (ordre des systèmes), InputFrame
   data/     toutes les valeurs d'équilibrage et définitions (classes, ennemis…)
@@ -49,4 +50,4 @@ docs/       DESIGN.md, ROADMAP.md
 
 Commandes console : `help`, `heal`, `god`, `spawn <ghoul|larva|boneArcher|bloater|cryptomancer> [n]`,
 `elite <ennemi> [enraged|armored|vampiric|volatile]`, `ult`, `status <id> [ticks]`, `killall`, `dash`,
-`seed [valeur]`, `restart`.
+`seed [valeur]`, `restart`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`.
