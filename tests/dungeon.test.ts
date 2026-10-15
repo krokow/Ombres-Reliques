@@ -106,10 +106,16 @@ describe('floor generation', () => {
   it('dresses floors differently per biome', () => {
     const walls = (f: Floor): number => f.map.tiles.filter((t) => t === Tile.Wall).length;
     // Crypt pillars vs forest erosion: same seed, different biome → different layouts.
-    expect(walls(generateFloor('BIOME', 1))).not.toBe(walls(generateFloor('BIOME', 2)));
-    expect(generateFloor('BIOME', 1).biome).toBe('crypt');
-    expect(generateFloor('BIOME', 2).biome).toBe('forest');
-    expect(generateFloor('BIOME', 3).biome).toBe('forge');
+    expect(walls(generateFloor('BIOME', 1))).not.toBe(walls(generateFloor('BIOME', 4)));
+    // Choice 1b: three floors per biome.
+    expect([1, 2, 3].map((l) => generateFloor('BIOME', l).biome)).toEqual([
+      'crypt',
+      'crypt',
+      'crypt',
+    ]);
+    expect(generateFloor('BIOME', 4).biome).toBe('forest');
+    expect(generateFloor('BIOME', 7).biome).toBe('forge');
+    expect(generateFloor('BIOME', 10).biome).toBe('crypt'); // endless loop
   });
 
   it('is fast enough to generate on the fly', () => {

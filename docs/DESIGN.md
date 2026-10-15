@@ -91,6 +91,15 @@
 - **Malédictions = reliques négatives** : même système, affichées avec un liseré rouge.
 - Clé de départ : 1, pour que le premier coffre ne soit jamais frustrant.
 
+## Biomes & boss (M7)
+
+- **3 étages par biome (choix 1b)** : les deux premiers étages montent en tension avec des meutes de
+  champions (contenu procédural, coût de design nul), le troisième offre les rencontres écrites à la main.
+- **Boss = données** (`BossEnemyDef.phases[].patterns[]`) : un seul moteur, 7 motifs réutilisables.
+  Chaque motif a une phase de télégraphe qui suit puis se fige (fenêtre d'esquive lisible).
+- **Contrôle des boss** : jamais interrompus (pas de stun-lock), étourdissements ×0,15-0,25.
+- **Mode infini (choix 2b)** : même contenu, `difficultyFor(level)` = scaling par étage × scaling de boucle.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

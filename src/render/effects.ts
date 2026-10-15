@@ -226,7 +226,9 @@ export class Effects {
             ? ['#e6fbff', '#6fd0ff']
             : ev.flavor === 'arcane'
               ? ['#ffb347', '#c77dff']
-              : [PALETTE.explosion, PALETTE.poison];
+              : ev.flavor === 'fire'
+                ? ['#ffb347', '#ff5a2a']
+                : [PALETTE.explosion, PALETTE.poison];
         this.burst(ev.x, ev.y, 26, hot, ev.radius * 5, 0.45, 0, Math.PI * 2, true);
         this.burst(ev.x, ev.y, 14, cold, ev.radius * 2.5, 0.8, 0, Math.PI * 2);
         this.rings.push({
@@ -490,6 +492,22 @@ export class Effects {
       }
       case 'cardTaken':
       case 'talentTaken':
+        break;
+      case 'bossPhase':
+        camera.addTrauma(0.7);
+        this.banner = { text: `${ev.name} — phase ${ev.phase + 1}`, life: 1.8, maxLife: 1.8 };
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 120,
+          color: '#ff5a6e',
+          life: 0.6,
+          maxLife: 0.6,
+        });
+        this.burst(ev.x, ev.y, 40, '#ff5a6e', 300, 0.7, 0, Math.PI * 2, true);
+        break;
+      case 'victory':
+        this.banner = { text: 'Victoire !', life: 4, maxLife: 4 };
         break;
       case 'pickup':
         if (ev.label)

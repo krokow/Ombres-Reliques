@@ -36,7 +36,14 @@ export function resolveHitboxes(sim: Sim): void {
         x: ht.x,
         y: ht.y,
         radius: hb.shape.kind === 'circle' ? hb.shape.radius : 0,
-        flavor: hb.team === 'player' ? (frosty ? 'frost' : 'arcane') : 'plague',
+        flavor:
+          hb.team === 'player'
+            ? frosty
+              ? 'frost'
+              : 'arcane'
+            : hb.statuses.some((st) => st.id === 'poison')
+              ? 'plague'
+              : 'fire',
       });
     }
 

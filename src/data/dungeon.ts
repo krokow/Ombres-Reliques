@@ -1,13 +1,4 @@
-import type { EliteModifierId } from './elites';
-import type { EnemyId } from './enemies';
-
-export interface EncounterEntry {
-  id: EnemyId;
-  count?: number;
-  elite?: readonly EliteModifierId[];
-  /** Marks the encounter's champion (gets the top-screen HP bar). */
-  champion?: string;
-}
+import { loopOf } from './biomes';
 
 /** Floor generation & encounter tuning. Sizes in tiles. */
 export const DUNGEON = {
@@ -34,7 +25,9 @@ export const DUNGEON = {
   secretRoom: { minSize: 4, maxSize: 5 },
   maxAttempts: 40,
   /** Per-floor enemy scaling (floor 1 = ×1). */
-  scaling: { hpPerFloor: 0.18, damagePerFloor: 0.1 },
+  scaling: { hpPerFloor: 0.15, damagePerFloor: 0.08 },
+  /** Endless mode: each loop through the biomes multiplies on top of the floor scaling. */
+  endless: { hpPerLoop: 0.4, damagePerLoop: 0.2 },
   encounter: {
     baseEnemies: 2,
     /** One extra enemy per this many interior tiles. */
@@ -44,22 +37,8 @@ export const DUNGEON = {
     /** Enemies spawn at least this many tiles from the player. */
     minSpawnTiles: 4,
     eliteChance: { base: 0.02, perFloor: 0.06, max: 0.35 },
-    pool: [
-      { id: 'ghoul', weight: 5, minFloor: 1 },
-      { id: 'boneArcher', weight: 3, minFloor: 1 },
-      { id: 'bloater', weight: 2, minFloor: 1 },
-      { id: 'cryptomancer', weight: 1, minFloor: 2 },
-    ] satisfies readonly { id: EnemyId; weight: number; minFloor: number }[],
-    /** Placeholders until real mini-bosses and bosses (M7). */
-    miniboss: [
-      { id: 'ghoul', elite: ['armored', 'enraged'], champion: 'Goule colossale' },
-      { id: 'boneArcher', count: 2 },
-    ] satisfies readonly EncounterEntry[],
-    boss: [
-      { id: 'cryptomancer', elite: ['armored', 'vampiric'], champion: 'Le Cryptarque' },
-      { id: 'ghoul', count: 2 },
-      { id: 'bloater', count: 1 },
-    ] satisfies readonly EncounterEntry[],
+    /** Champion packs (floors 1-2 of a biome): escorts around one double-elite champion. */
+    championPack: { minibossEscorts: 2, bossEscorts: 3, eliteMods: 2 },
   },
   /** Tiles revealed around the player (fog of war). */
   revealRadius: 6,
@@ -67,3 +46,14 @@ export const DUNGEON = {
 
 /** Fraction of max HP restored when taking the stairs. */
 export const DESCEND_HEAL = 0.25;
+
+/** Enemy HP and damage multipliers for a floor (floor scaling × endless loops). */
+export function difficultyFor(level: number): { hpMult: number; damageMult: number } {
+  const loop = loopOf(level);
+  return {
+    hpMult: (1 + DUNGEON.scaling.hpPerFloor * (level - 1)) * (1 + DUNGEON.endless.hpPerLoop * loop),
+    damageMult:
+      (1 + DUNGEON.scaling.damagePerFloor * (level - 1)) *
+      (1 + DUNGEON.endless.damagePerLoop * loop),
+  };
+}

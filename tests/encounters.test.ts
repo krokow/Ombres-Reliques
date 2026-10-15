@@ -92,7 +92,7 @@ describe('dungeon mode', () => {
     place(game, c.x, c.y);
     const next = runCollect(game, 1);
     expect(next).toContainEqual(
-      expect.objectContaining({ type: 'floor', level: 2, biome: 'forest' }),
+      expect.objectContaining({ type: 'floor', level: 2, biome: 'crypt' }),
     );
     expect(game.level).toBe(2);
     expect(game.map).not.toBe(firstMap);

@@ -4,7 +4,7 @@ import { hashString } from '../core/rng';
 import { BIOMES, type BiomeDef } from '../data/biomes';
 import { ARCANIST, CLASSES, GUARDIAN, SHADOW_BLADE } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
-import { enemyDef } from '../data/enemies';
+import { enemyDef, type BossPattern } from '../data/enemies';
 import { STATUSES } from '../data/statuses';
 import { CONSUMABLES, RARITIES, RELICS } from '../data/items';
 import { KEY_BINDINGS } from '../data/controls';
@@ -19,6 +19,12 @@ import type { Effects } from './effects';
 import { PALETTE } from './palette';
 import { applyAnim, type Animator } from './anim';
 import {
+  drawBeast,
+  drawBossCrown,
+  drawGolem,
+  drawImp,
+  drawKnight,
+  drawMortar,
   drawArcaneBolt,
   drawArcanist,
   drawFire,
@@ -59,6 +65,43 @@ function interp(t: Interp, alpha: number): { x: number; y: number } {
 }
 
 /** Canvas 2D renderer. Reads the world, never mutates it. */
+/** Telegraph progress (0..1) and "attacking now" flag for any enemy, whatever its behaviour. */
+export function enemyTelegraph(game: Game, e: Entity): { windup: number; active: boolean } {
+  const w = game.world;
+  const ai = w.req(e, 'enemy');
+  const def = enemyDef(ai.defId);
+  const k = (total: number): number => Math.min(1, ai.phaseTicks / Math.max(1, total));
+  switch (def.behavior) {
+    case 'melee':
+      return {
+        windup: ai.phase === 'windup' ? k(def.windupTicks) : 0,
+        active: ai.phase === 'strike',
+      };
+    case 'ranged':
+    case 'artillery':
+      return { windup: ai.phase === 'windup' ? k(def.windupTicks) : 0, active: false };
+    case 'kamikaze':
+      return { windup: ai.phase === 'fuse' ? k(def.fuseTicks) : 0, active: false };
+    case 'summoner':
+      return { windup: ai.phase === 'channel' ? k(def.channelTicks) : 0, active: false };
+    case 'charger':
+      return {
+        windup: ai.phase === 'windup' ? k(def.windupTicks) : 0,
+        active: ai.phase === 'strike',
+      };
+    case 'boss': {
+      const st = w.get(e, 'boss');
+      const pat = st
+        ? def.phases[st.phase]?.patterns[st.current % (def.phases[st.phase]?.patterns.length ?? 1)]
+        : undefined;
+      return {
+        windup: st?.step === 'windup' && pat ? Math.min(1, st.ticks / pat.windupTicks) : 0,
+        active: st?.step === 'active',
+      };
+    }
+  }
+}
+
 export class Renderer {
   readonly ctx: CanvasRenderingContext2D;
   private dpr = 1;
@@ -221,38 +264,50 @@ export class Renderer {
     const ai = w.get(e, 'enemy');
     if (ai) {
       const def = enemyDef(ai.defId);
-      const progress = (total: number): number => Math.min(1, ai.phaseTicks / total);
-      switch (def.behavior) {
-        case 'melee':
+      const { windup, active } = enemyTelegraph(game, e);
+      const staggered = w.req(e, 'health').stagger > 0 || hasStatus(w, e, 'stun');
+      const pose = { flash, time: this.time, windup, active };
+      switch (def.look) {
+        case 'ghoul':
           drawGhoul(ctx, 0, 0, radius, facing, def.palette, {
             flash,
             time: this.time,
-            windup: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
-            striking: ai.phase === 'strike',
-            staggered: w.req(e, 'health').stagger > 0 || hasStatus(w, e, 'stun'),
+            windup,
+            striking: active,
+            staggered,
           });
           break;
-        case 'ranged':
-          drawArcher(ctx, 0, 0, radius, facing, def.palette, {
-            flash,
-            draw: ai.phase === 'windup' ? progress(def.windupTicks) : 0,
-          });
+        case 'archer':
+          drawArcher(ctx, 0, 0, radius, facing, def.palette, { flash, draw: windup });
           break;
-        case 'kamikaze':
-          drawBloater(ctx, 0, 0, radius, def.palette, {
-            flash,
-            time: this.time,
-            fuse: ai.phase === 'fuse' ? progress(def.fuseTicks) : 0,
-          });
+        case 'bloater':
+          drawBloater(ctx, 0, 0, radius, def.palette, { flash, time: this.time, fuse: windup });
           break;
-        case 'summoner':
+        case 'caster':
           drawCryptomancer(ctx, 0, 0, radius, facing, def.palette, {
             flash,
             time: this.time,
-            channel: ai.phase === 'channel' ? progress(def.channelTicks) : 0,
+            channel: windup,
           });
           break;
+        case 'knight':
+          drawKnight(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'beast':
+          drawBeast(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'golem':
+          drawGolem(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'imp':
+          drawImp(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'mortar':
+          drawMortar(ctx, radius, facing, def.palette, pose);
+          break;
       }
+      const boss = w.get(e, 'boss');
+      if (boss) drawBossCrown(ctx, radius, def.palette.eyes, this.time, boss.step === 'transition');
       if (hasStatus(w, e, 'stun')) this.drawStunStars(radius);
     }
     ctx.restore();
@@ -334,7 +389,7 @@ export class Renderer {
   private drawTelegraphs(game: Game, alpha: number): void {
     const ctx = this.ctx;
     const w = game.world;
-    for (const [, ai, t, facing, body] of w.query('enemy', 'transform', 'facing', 'body')) {
+    for (const [e, ai, t, facing, body] of w.query('enemy', 'transform', 'facing', 'body')) {
       const def = enemyDef(ai.defId);
       const p = interp(t, alpha);
       if (def.behavior === 'melee' && ai.phase === 'windup') {
@@ -361,6 +416,42 @@ export class Renderer {
           def.explosion.radius,
           Math.min(1, ai.phaseTicks / def.fuseTicks),
         );
+      } else if (def.behavior === 'charger' && ai.phase === 'windup') {
+        const locked = ai.phaseTicks >= def.windupTicks - def.aimLockTicks;
+        const len = def.charge.speed * (def.charge.durationTicks / 60);
+        this.telegraphLane(
+          p.x,
+          p.y,
+          Math.atan2(ai.aimY - p.y, ai.aimX - p.x),
+          len,
+          def.charge.radius,
+          Math.min(1, ai.phaseTicks / def.windupTicks),
+          locked,
+        );
+      } else if (def.behavior === 'artillery' && ai.phase === 'windup') {
+        this.crosshair(
+          ai.aimX,
+          ai.aimY,
+          def.shell.radius,
+          Math.min(1, ai.phaseTicks / def.windupTicks),
+        );
+      } else if (def.behavior === 'boss') {
+        const st = w.get(e, 'boss');
+        const pattern = st
+          ? def.phases[st.phase]?.patterns[
+              st.current % (def.phases[st.phase]?.patterns.length ?? 1)
+            ]
+          : undefined;
+        if (st?.step === 'windup' && pattern)
+          this.bossTelegraph(
+            p.x,
+            p.y,
+            body.radius,
+            st.aimX,
+            st.aimY,
+            pattern,
+            Math.min(1, st.ticks / pattern.windupTicks),
+          );
       } else if (def.behavior === 'summoner' && ai.phase === 'channel') {
         const progress = Math.min(1, ai.phaseTicks / def.channelTicks);
         ctx.fillStyle = `rgba(199, 125, 255, ${0.1 + progress * 0.15})`;
@@ -393,6 +484,121 @@ export class Renderer {
         continue;
       }
       this.telegraphCircle(t.x, t.y, hb.shape.radius, 1 - hb.delay / 20);
+    }
+  }
+
+  /** Straight charge lane, filling with the windup; solid once the aim is locked. */
+  private telegraphLane(
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    halfWidth: number,
+    progress: number,
+    locked: boolean,
+  ): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = PALETTE.telegraph;
+    ctx.fillRect(0, -halfWidth, length * progress, halfWidth * 2);
+    ctx.strokeStyle = locked ? PALETTE.telegraphEdge : PALETTE.telegraph;
+    ctx.lineWidth = locked ? 2 : 1;
+    ctx.setLineDash(locked ? [] : [6, 6]);
+    ctx.strokeRect(0, -halfWidth, length, halfWidth * 2);
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  private crosshair(x: number, y: number, radius: number, progress: number): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = PALETTE.telegraphEdge;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * (1.6 - progress * 0.6), 0, Math.PI * 2);
+    ctx.moveTo(x - radius, y);
+    ctx.lineTo(x + radius, y);
+    ctx.moveTo(x, y - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.stroke();
+  }
+
+  /** Every boss attack shows its shape while winding up. */
+  private bossTelegraph(
+    x: number,
+    y: number,
+    r: number,
+    ax: number,
+    ay: number,
+    p: BossPattern,
+    progress: number,
+  ): void {
+    const ctx = this.ctx;
+    const angle = Math.atan2(ay - y, ax - x);
+    switch (p.kind) {
+      case 'slam':
+        this.telegraphCircle(x, y, p.radius, progress);
+        break;
+      case 'cone':
+        ctx.fillStyle = PALETTE.telegraph;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, p.range * progress, angle - p.arc / 2, angle + p.arc / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = PALETTE.telegraphEdge;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, p.range, angle - p.arc / 2, angle + p.arc / 2);
+        ctx.closePath();
+        ctx.stroke();
+        break;
+      case 'volley':
+      case 'nova': {
+        const n = p.count;
+        ctx.strokeStyle = PALETTE.telegraphEdge;
+        ctx.globalAlpha = 0.3 + progress * 0.5;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const a =
+            p.kind === 'nova'
+              ? angle + (i / n) * Math.PI * 2
+              : angle + (n === 1 ? 0 : (i / (n - 1) - 0.5) * p.spread);
+          ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+          ctx.lineTo(
+            x + Math.cos(a) * (r + 60 + 80 * progress),
+            y + Math.sin(a) * (r + 60 + 80 * progress),
+          );
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'charge':
+        this.telegraphLane(
+          x,
+          y,
+          angle,
+          p.speed * (p.durationTicks / 60),
+          r + 6,
+          progress,
+          progress > 0.66,
+        );
+        break;
+      case 'rain':
+        this.crosshair(ax, ay, p.spread * 0.5, progress);
+        break;
+      case 'summon':
+        ctx.fillStyle = `rgba(199, 125, 255, ${0.1 + progress * 0.2})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
     }
   }
 

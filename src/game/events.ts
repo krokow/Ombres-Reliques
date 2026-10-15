@@ -51,7 +51,7 @@ export type GameEvent =
       y: number;
       radius: number;
       /** 'frost' | 'arcane' for player spells, 'plague' for enemy/neutral blasts. */
-      flavor: 'plague' | 'frost' | 'arcane';
+      flavor: 'plague' | 'frost' | 'arcane' | 'fire';
     }
   | { type: 'summon'; x: number; y: number }
   | { type: 'status'; target: Entity; id: StatusId }
@@ -95,4 +95,6 @@ export type GameEvent =
   | { type: 'altarOpen'; altar: Entity; options: AltarOption[] }
   | { type: 'altarUsed'; option: AltarOption; x: number; y: number }
   | { type: 'equip'; classId: ClassId; name: string; rarity: Rarity; x: number; y: number }
-  | { type: 'consumable'; id: ConsumableId; x: number; y: number };
+  | { type: 'consumable'; id: ConsumableId; x: number; y: number }
+  | { type: 'bossPhase'; entity: Entity; phase: number; name: string; x: number; y: number }
+  | { type: 'victory'; level: number };

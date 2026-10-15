@@ -698,3 +698,251 @@ export function swingPose(game: Game): SwingPose | null {
     index: combo.index,
   };
 }
+
+export interface EnemyPose {
+  flash: boolean;
+  time: number;
+  /** 0..1 telegraph progress of the current attack. */
+  windup: number;
+  /** Attacking right now (strike, charge…). */
+  active: boolean;
+}
+
+function shade(flash: boolean, col: string): string {
+  return flash ? '#ffffff' : col;
+}
+
+/** Armoured knight with a lance, lowered while charging. */
+export function drawKnight(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  const lance = pose.active ? 1.9 : 1.2 - pose.windup * 0.4;
+  ctx.strokeStyle = shade(pose.flash, '#b9bccb');
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.3, r * 0.55);
+  ctx.lineTo(r * lance, r * 0.55 - (pose.active ? r * 0.5 : 0));
+  ctx.stroke();
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = shade(pose.flash, look.dark);
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  // Plume and visor.
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  ctx.fillRect(-r * 1.1, -r * 0.18, r * 0.6, r * 0.36);
+  ctx.fillStyle = '#0b0910';
+  ctx.fillRect(r * 0.35, -r * 0.35, r * 0.3, r * 0.7);
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = pose.windup > 0 ? 10 : 4;
+  ctx.fillRect(r * 0.45, -r * 0.2, r * 0.12, r * 0.4);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** Four-legged beast (wolf, stag, bull): legs cycle with time, horns for big ones. */
+export function drawBeast(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  const gait = Math.sin(pose.time * (pose.active ? 30 : 12)) * r * 0.25;
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  for (const [lx, ly, ph] of [
+    [0.5, -0.7, 1],
+    [0.5, 0.7, -1],
+    [-0.6, -0.7, -1],
+    [-0.6, 0.7, 1],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(r * lx + gait * ph, r * ly, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Long body, crouched while winding up.
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.1 - pose.windup * r * 0.15, 0, r * 1.15, r * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = shade(pose.flash, look.dark);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Head + horns/antlers for larger beasts.
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(r * 0.95, 0, r * 0.45, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  if (r >= 14) {
+    ctx.strokeStyle = shade(pose.flash, look.dark);
+    ctx.lineWidth = 2.5;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 1.05, side * r * 0.3);
+      ctx.lineTo(r * 1.5, side * r * 0.75);
+      ctx.lineTo(r * 1.75, side * r * 0.55);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = pose.windup > 0 ? 10 : 4;
+  ctx.fillRect(r * 1.1, -r * 0.22, r * 0.14, r * 0.12);
+  ctx.fillRect(r * 1.1, r * 0.1, r * 0.14, r * 0.12);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** Hulking golem: blocky body, glowing cracks, fists raised during windup. */
+export function drawGolem(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  const raise = pose.active ? 1.3 : 0.9 - pose.windup * 0.5;
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  for (const side of [-1, 1]) {
+    ctx.fillRect(r * raise - r * 0.3, side * r * 0.85 - r * 0.3, r * 0.6, r * 0.6);
+  }
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.9, -r * 0.8);
+  ctx.lineTo(r * 0.7, -r * 0.95);
+  ctx.lineTo(r * 0.95, 0);
+  ctx.lineTo(r * 0.7, r * 0.95);
+  ctx.lineTo(-r * 0.9, r * 0.8);
+  ctx.lineTo(-r * 1.05, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = shade(pose.flash, look.dark);
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.strokeStyle = look.eyes;
+  ctx.globalAlpha = 0.6 + Math.sin(pose.time * 3) * 0.2 + pose.windup * 0.3;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.5, -r * 0.4);
+  ctx.lineTo(-r * 0.1, 0);
+  ctx.lineTo(-r * 0.4, r * 0.45);
+  ctx.moveTo(-r * 0.1, 0);
+  ctx.lineTo(r * 0.3, r * 0.1);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(r * 0.4, -r * 0.3, r * 0.2, r * 0.18);
+  ctx.fillRect(r * 0.4, r * 0.12, r * 0.2, r * 0.18);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** Small horned imp with a flickering tail flame. */
+export function drawImp(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  ctx.fillStyle = `rgba(255, 160, 60, ${0.5 + Math.sin(pose.time * 20) * 0.3})`;
+  ctx.beginPath();
+  ctx.arc(-r * 1.3, 0, r * 0.35 + Math.sin(pose.time * 25) * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, side * r * 0.6);
+    ctx.lineTo(-r * 0.1, side * r * 1.4);
+    ctx.lineTo(-r * 0.3, side * r * 0.7);
+    ctx.fill();
+  }
+  ctx.fillStyle = look.eyes;
+  ctx.fillRect(r * 0.4, -r * 0.35, r * 0.25, r * 0.2);
+  ctx.fillRect(r * 0.4, r * 0.15, r * 0.25, r * 0.2);
+  ctx.restore();
+}
+
+/** Squat mortar creature with a barrel on its back that glows before firing. */
+export function drawMortar(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r * 0.85, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = shade(pose.flash, look.dark);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Barrel.
+  ctx.fillStyle = shade(pose.flash, '#2a2420');
+  ctx.beginPath();
+  ctx.arc(-r * 0.15, 0, r * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(255, 140, 50, ${0.3 + pose.windup * 0.7})`;
+  ctx.beginPath();
+  ctx.arc(-r * 0.15, 0, r * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = look.eyes;
+  ctx.fillRect(r * 0.6, -r * 0.3, r * 0.2, r * 0.15);
+  ctx.fillRect(r * 0.6, r * 0.15, r * 0.2, r * 0.15);
+  ctx.restore();
+}
+
+/** Spiky crown + aura marking bosses. */
+export function drawBossCrown(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  color: string,
+  time: number,
+  roaring: boolean,
+): void {
+  ctx.save();
+  ctx.globalAlpha = roaring ? 0.9 : 0.35 + Math.sin(time * 3) * 0.15;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = roaring ? 4 : 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * (1.35 + (roaring ? Math.sin(time * 30) * 0.1 : 0)), 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#ffd34d';
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const x = -r * 0.5 + (i * r) / 4;
+    ctx.lineTo(x, -r - 4 - (i % 2 === 0 ? 8 : 3));
+    ctx.lineTo(x + r / 8, -r - 4);
+  }
+  ctx.lineTo(r * 0.5, -r - 2);
+  ctx.lineTo(-r * 0.5, -r - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}

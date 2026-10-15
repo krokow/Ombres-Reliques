@@ -271,7 +271,8 @@ function handleMetaKeys(): void {
   if (input.consumePressed('progress')) progressPanel.toggle(game);
   if (input.consumePressed('mute')) debug.print(sfx.toggleMute() ? 'Son coupé' : 'Son activé');
   input.suspended = debug.consoleOpen;
-  if (!game.playerAlive) {
+  const won = game.dungeon?.victory === true;
+  if (!game.playerAlive || won) {
     if (input.consumePressed('confirm')) newGame(randomSeed());
     else if (input.consumePressed('retrySameSeed')) newGame(game.seed);
   }

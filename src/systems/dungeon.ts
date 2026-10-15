@@ -1,10 +1,11 @@
 import { clamp } from '../core/math';
 import type { Rng } from '../core/rng';
 import { Tile } from '../core/tilemap';
-import { DUNGEON, type EncounterEntry } from '../data/dungeon';
+import { BIOMES, floorInBiome, FLOORS_PER_BIOME, RUN_FLOORS } from '../data/biomes';
+import { DUNGEON } from '../data/dungeon';
 import type { EliteModifierId } from '../data/elites';
 import { ELITE_MODIFIERS } from '../data/elites';
-import type { EnemyId } from '../data/enemies';
+import { enemyDef, type EnemyId } from '../data/enemies';
 import { floodFill, roomIdAt, type Floor, type Room } from '../dungeon/floor';
 import type { Entity } from '../ecs/world';
 import { spawnEnemy } from '../game/factories';
@@ -27,6 +28,8 @@ export interface DungeonState {
   exploredVersion: number;
   stairs: { tx: number; ty: number } | null;
   descendRequested: boolean;
+  /** The run's final boss has been beaten (endless mode from here, choice 2b). */
+  victory: boolean;
 }
 
 export function createDungeonState(floor: Floor): DungeonState {
@@ -43,6 +46,7 @@ export function createDungeonState(floor: Floor): DungeonState {
     exploredVersion: 0,
     stairs: null,
     descendRequested: false,
+    victory: false,
   };
 }
 
@@ -65,37 +69,51 @@ export function roomArea(floor: Floor, room: number): number {
   return n;
 }
 
-function expand(entries: readonly EncounterEntry[]): EncounterSpawn[] {
-  return entries.flatMap((e) =>
-    Array.from({ length: e.count ?? 1 }, () => ({
-      id: e.id,
-      elite: [...(e.elite ?? [])],
-      ...(e.champion ? { champion: e.champion } : {}),
-    })),
-  );
-}
-
-/** What spawns in a room (seeded). */
+/**
+ * What spawns in a room (seeded). Combat rooms draw from the biome roster;
+ * mini-boss / boss rooms hold a champion pack on a biome's first floors and
+ * the biome's true mini-boss / boss on its last floor (choice 1b).
+ */
 export function rollEncounter(rng: Rng, floor: Floor, room: Room): EncounterSpawn[] {
   const enc = DUNGEON.encounter;
-  if (room.type === 'miniboss') return expand(enc.miniboss);
-  if (room.type === 'boss') return expand(enc.boss);
+  const biome = BIOMES[floor.biome];
+  const inBiome = floorInBiome(floor.level);
+  const pool = biome.roster
+    .filter((p) => p.minFloor <= inBiome)
+    .map((p) => ({ weight: p.weight, value: p.id }));
+  const mods = Object.keys(ELITE_MODIFIERS) as EliteModifierId[];
+  if (room.type === 'miniboss' || room.type === 'boss') {
+    const boss = room.type === 'boss';
+    if (inBiome === FLOORS_PER_BIOME) {
+      const id = boss ? biome.boss : biome.miniboss;
+      const def = enemyDef(id);
+      return [{ id, elite: [], champion: def.behavior === 'boss' ? def.title : def.name }];
+    }
+    const pack = enc.championPack;
+    const champMods = rng.shuffle([...mods]).slice(0, pack.eliteMods);
+    const out: EncounterSpawn[] = [
+      {
+        id: rng.weighted(pool),
+        elite: champMods,
+        champion: boss ? biome.champions.boss : biome.champions.miniboss,
+      },
+    ];
+    for (let i = 0; i < (boss ? pack.bossEscorts : pack.minibossEscorts); i++)
+      out.push({ id: rng.weighted(pool), elite: [] });
+    return out;
+  }
   if (room.type !== 'combat') return [];
   const count = Math.min(
     enc.max,
     enc.baseEnemies +
       Math.floor(roomArea(floor, room.id) / enc.tilesPerEnemy) +
-      enc.perFloor * (floor.level - 1),
+      Math.floor((enc.perFloor * (floor.level - 1)) / 2),
   );
-  const pool = enc.pool
-    .filter((p) => p.minFloor <= floor.level)
-    .map((p) => ({ weight: p.weight, value: p.id }));
   const eliteChance = clamp(
     enc.eliteChance.base + enc.eliteChance.perFloor * (floor.level - 1),
     0,
     enc.eliteChance.max,
   );
-  const mods = Object.keys(ELITE_MODIFIERS) as EliteModifierId[];
   return Array.from({ length: count }, () => ({
     id: rng.weighted(pool),
     elite: rng.chance(eliteChance) ? [rng.pick(mods)] : [],
@@ -216,6 +234,10 @@ function finishEncounter(sim: Sim, d: DungeonState, room: Room): void {
   if (room.type === 'miniboss' || room.type === 'boss') setDoors(sim, room, Tile.DoorOpen);
   sim.events.push({ type: 'roomCleared', room: room.id, roomType: room.type });
   if (room.type === 'boss') {
+    if (d.floor.level === RUN_FLOORS) {
+      d.victory = true;
+      sim.events.push({ type: 'victory', level: d.floor.level });
+    }
     d.stairs = { ...room.center };
     sim.map.set(room.center.tx, room.center.ty, Tile.Stairs);
     const c = sim.map.tileCenter(room.center.tx, room.center.ty);

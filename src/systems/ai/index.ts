@@ -3,6 +3,8 @@ import type { Sim } from '../../game/sim';
 import { isStunned, isTaunted } from '../statuses';
 import { kamikazeBehavior, meleeBehavior, rangedBehavior, summonerBehavior } from './behaviors';
 import { halt, perceive, setPhase, type Neighbor } from './context';
+import { bossBehavior } from './boss';
+import { artilleryBehavior, chargerBehavior } from './special';
 
 /** Runs every enemy's state machine. Order: timers → stagger/stun → perception → behaviour. */
 export function enemyAI(sim: Sim): void {
@@ -45,6 +47,13 @@ export function enemyAI(sim: Sim): void {
       neighbors,
     });
 
+    if (def.behavior === 'boss') {
+      health.stagger = 0;
+      // Bosses ignore staggers; stuns (already shortened) still pin them in place.
+      if (isStunned(w, e)) halt(ctx);
+      else bossBehavior(ctx, def);
+      continue;
+    }
     // Staggers interrupt telegraphed attacks, but a lit fuse keeps burning.
     if (staggered && ai.phase !== 'fuse') {
       halt(ctx);
@@ -64,6 +73,12 @@ export function enemyAI(sim: Sim): void {
         break;
       case 'summoner':
         summonerBehavior(ctx, def);
+        break;
+      case 'charger':
+        chargerBehavior(ctx, def);
+        break;
+      case 'artillery':
+        artilleryBehavior(ctx, def);
         break;
     }
   }

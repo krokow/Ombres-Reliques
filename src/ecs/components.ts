@@ -253,6 +253,21 @@ export interface EliteState {
   explodesOnDeath: boolean;
 }
 
+/** Boss state machine (phases, current attack). */
+export interface BossState {
+  phase: number;
+  step: 'rest' | 'windup' | 'active' | 'transition';
+  ticks: number;
+  /** Index of the next pattern in the phase's rotation. */
+  next: number;
+  /** Pattern currently being wound up / executed. */
+  current: number;
+  aimX: number;
+  aimY: number;
+  dirX: number;
+  dirY: number;
+}
+
 /** Enemy spawned by a room encounter. */
 export interface Encounter {
   room: number;
@@ -360,6 +375,7 @@ export interface Components {
   minion: Minion;
   encounter: Encounter;
   champion: Champion;
+  boss: BossState;
   pickup: Pickup;
   interactable: Interactable;
   statuses: Statuses;

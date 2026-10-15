@@ -48,6 +48,6 @@ docs/       DESIGN.md, ROADMAP.md
 | Son on/off                               | M                                                           |
 | Overlay debug / hitboxes / console       | F3 / F4 / `²`                                               |
 
-Commandes console : `help`, `heal`, `god`, `spawn <ghoul|larva|boneArcher|bloater|cryptomancer> [n]`,
+Commandes console : `help`, `heal`, `god`, `spawn <id ennemi> [n]` (ex. `spawn cryptarch`),
 `elite <ennemi> [enraged|armored|vampiric|volatile]`, `ult`, `status <id> [ticks]`, `killall`, `dash`,
 `seed [valeur]`, `restart`, `ko`, `revive`, `xp <n>`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`.

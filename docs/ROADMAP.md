@@ -165,3 +165,26 @@
 - Toutes les actions d'UI (cartes, talents, équiper, recycler, autel) passent par `UiAction` dans
   l'`InputFrame` ; tirages sur le flux RNG `loot`.
 - 178 tests.
+
+## M7 – livré
+
+- **Structure (choix 1b)** : 3 étages par biome, 9 étages : crypte → forêt corrompue → forge volcanique.
+  Étages 1-2 d'un biome : salles mini-boss/boss gardées par des **meutes de champions** (double élite +
+  escorte du bestiaire) ; étage 3 : **vrai mini-boss** puis **vrai boss** du biome.
+- **Victoire et mode infini (choix 2b)** : battre le boss de l'étage 9 = victoire (Entrée : nouvelle run) ;
+  l'escalier continue en boucle sur les biomes, ×1,4 PV et ×1,2 dégâts ennemis par boucle en plus du
+  scaling par étage.
+- **Bestiaires** (5-6 types par biome) : Crypte (+ Chevalier des tombes), Forêt (Loup-ronce, Tireur d'épines
+  en éventail, Sporelin, Chaman des racines + Jeunes pousses, Cerf maudit), Forge (Diablotin de cendre, Golem
+  de magma, Mortier de braise, Scorie vive, Contremaître de forge, Taureau d'airain).
+- **Nouveaux comportements** : chargeur (couloir télégraphié qui suit puis se verrouille, étourdi s'il
+  percute un mur) et artillerie (obus retardés sur la position du joueur, avec dispersion).
+- **Boss data-driven** : phases déclenchées par seuils de PV (rugissement invulnérable), rotation de
+  motifs télégraphiés — impact, cône, salve, nova, invocation, charge, pluie — plus rapides à chaque phase ;
+  immunisés aux interruptions, étourdissements réduits. 6 boss : Gardien d'ossuaire, Le Cryptarque,
+  Mère-Ronce, Le Cerf Pâle, Forgeron déchu, Cœur de la Forge.
+- **Sprites par famille** (`look`) : chevalier, bête (pattes animées, bois/cornes), golem (fissures
+  lumineuses), diablotin, mortier ; couronne et aura pour les boss ; télégraphes dédiés (couloirs, viseurs,
+  cônes, éventails de tirs).
+- HUD : étage dans le biome (« 2/3 »), boucle en mode infini, bandeau de victoire.
+- 191 tests (bestiaires, structure, chaque motif de chaque boss, phases, victoire → mode infini).

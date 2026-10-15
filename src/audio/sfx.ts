@@ -41,7 +41,9 @@ type SoundName =
   | 'buy'
   | 'relicGet'
   | 'potion'
-  | 'thunder';
+  | 'thunder'
+  | 'roar'
+  | 'victory';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -123,6 +125,10 @@ export class Sfx {
       case 'talentTaken':
       case 'equip':
         return this.play('pick');
+      case 'bossPhase':
+        return this.play('roar');
+      case 'victory':
+        return this.play('victory');
       case 'pickup':
         return this.play(ev.kind === 'gold' ? 'coin' : 'pick');
       case 'chestOpen':
@@ -319,6 +325,15 @@ export class Sfx {
       case 'thunder':
         this.noiseSweep(t, 0.7, 4000, 150, 0.8, 'lowpass');
         this.tone(t, 'sawtooth', 120, 40, 0.6, 0.4);
+        break;
+      case 'roar':
+        this.tone(t, 'sawtooth', 110, 55, 0.9, 0.45);
+        this.noiseSweep(t, 0.9, 900, 120, 0.5, 'lowpass');
+        break;
+      case 'victory':
+        [523, 659, 784, 1046, 784, 1046].forEach((f, i) =>
+          this.tone(t + i * 0.14, 'triangle', f, f, 0.25, 0.2),
+        );
         break;
       case 'tick':
         this.tone(t, 'sine', 300, 250, 0.04, 0.08);

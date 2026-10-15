@@ -1,5 +1,5 @@
 import { damp } from '../core/math';
-import { BIOMES } from '../data/biomes';
+import { BIOMES, floorInBiome, FLOORS_PER_BIOME, loopOf, RUN_FLOORS } from '../data/biomes';
 import { classDef, type ClassId } from '../data/classes';
 import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
@@ -166,8 +166,9 @@ export class Hud {
     ctx.textBaseline = 'top';
     ctx.font = `bold 13px ${FONT}`;
     ctx.fillStyle = PALETTE.hudText;
+    const loop = loopOf(game.level);
     const where = game.dungeon
-      ? `Étage ${game.level} · ${BIOMES[game.biome].name}`
+      ? `${loop > 0 ? `Boucle ${loop + 1} · ` : ''}Étage ${game.level} · ${BIOMES[game.biome].name} ${floorInBiome(game.level)}/${FLOORS_PER_BIOME}`
       : `Vague ${game.waves.wave}`;
     ctx.fillText(`${where}   Éliminations ${party.kills}`, width - 14, 12);
     // Gold, keys and party relics (minimap sits below: keep this compact).
@@ -229,6 +230,23 @@ export class Hud {
       ctx.fillStyle = PALETTE.hudText;
       ctx.fillText(fx.banner.text, width / 2, height * 0.28 - (1 - t) * 10);
       ctx.globalAlpha = 1;
+    }
+
+    if (game.dungeon?.victory && game.level === RUN_FLOORS && game.playerAlive) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(5,3,10,0.55)';
+      ctx.fillRect(0, height * 0.62, width, 56);
+      ctx.fillStyle = PALETTE.crit;
+      ctx.font = `bold 16px ${FONT}`;
+      ctx.fillText('Victoire ! Les reliques sont vôtres.', width / 2, height * 0.62 + 18);
+      ctx.fillStyle = PALETTE.hudText;
+      ctx.font = `12px ${FONT}`;
+      ctx.fillText(
+        'L’escalier mène au mode infini (les biomes reviennent, plus durs) · Entrée : nouvelle run',
+        width / 2,
+        height * 0.62 + 40,
+      );
     }
 
     if (!game.playerAlive) {

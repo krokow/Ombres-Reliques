@@ -1,6 +1,15 @@
-/** Visual identity + procedural dressing of each biome (enemy rosters per biome arrive in M7). */
+import type { EnemyId } from './enemies';
+
+/** Visual identity, procedural dressing and bestiary of each biome. */
 export interface BiomeDef {
   name: string;
+  /** Regular encounters: weighted pool; `minFloor` is the floor *within* the biome (1-3). */
+  roster: readonly { id: EnemyId; weight: number; minFloor: number }[];
+  /** True mini-boss and boss, met on the biome's last floor. */
+  miniboss: EnemyId;
+  boss: EnemyId;
+  /** Champion packs guarding the earlier floors' mini-boss / boss rooms. */
+  champions: { miniboss: string; boss: string };
   palette: {
     background: string;
     floorA: string;
@@ -25,6 +34,16 @@ export interface BiomeDef {
 export const BIOMES = {
   crypt: {
     name: 'Crypte',
+    roster: [
+      { id: 'ghoul', weight: 5, minFloor: 1 },
+      { id: 'boneArcher', weight: 3, minFloor: 1 },
+      { id: 'bloater', weight: 2, minFloor: 1 },
+      { id: 'cryptomancer', weight: 1, minFloor: 2 },
+      { id: 'tombKnight', weight: 2, minFloor: 2 },
+    ],
+    miniboss: 'ossuaryWarden',
+    boss: 'cryptarch',
+    champions: { miniboss: 'Sentinelle des caveaux', boss: 'Maître des cryptes' },
     palette: {
       background: '#07060b',
       floorA: '#1a1724',
@@ -44,6 +63,16 @@ export const BIOMES = {
   },
   forest: {
     name: 'Forêt corrompue',
+    roster: [
+      { id: 'thornWolf', weight: 5, minFloor: 1 },
+      { id: 'thornShooter', weight: 3, minFloor: 1 },
+      { id: 'sporeling', weight: 2, minFloor: 1 },
+      { id: 'rootShaman', weight: 1, minFloor: 2 },
+      { id: 'cursedStag', weight: 2, minFloor: 2 },
+    ],
+    miniboss: 'thornMother',
+    boss: 'paleStag',
+    champions: { miniboss: 'Rôdeur des ronces', boss: 'Seigneur du sous-bois' },
     palette: {
       background: '#050a07',
       floorA: '#15201a',
@@ -63,6 +92,17 @@ export const BIOMES = {
   },
   forge: {
     name: 'Forge volcanique',
+    roster: [
+      { id: 'cinderImp', weight: 5, minFloor: 1 },
+      { id: 'emberMortar', weight: 2, minFloor: 1 },
+      { id: 'slagBomb', weight: 2, minFloor: 1 },
+      { id: 'magmaGolem', weight: 2, minFloor: 1 },
+      { id: 'forgeWarden', weight: 1, minFloor: 2 },
+      { id: 'brassBull', weight: 2, minFloor: 2 },
+    ],
+    miniboss: 'fallenSmith',
+    boss: 'forgeHeart',
+    champions: { miniboss: 'Brute des fourneaux', boss: 'Gardien de l’enclume' },
     palette: {
       background: '#0b0505',
       floorA: '#221514',
@@ -84,9 +124,24 @@ export const BIOMES = {
 
 export type BiomeId = keyof typeof BIOMES;
 
-/** Floor → biome. Temporary 1-floor-per-biome cycle; M7 will give each biome several floors. */
+/** Biome order of a run; the endless mode loops over it (choice 2b). */
 export const FLOOR_BIOMES: readonly BiomeId[] = ['crypt', 'forest', 'forge'];
+/** Choice 1b: three floors per biome, the true mini-boss and boss on the third. */
+export const FLOORS_PER_BIOME = 3;
+/** Beating the boss of this floor wins the run (then endless mode). */
+export const RUN_FLOORS = FLOOR_BIOMES.length * FLOORS_PER_BIOME;
 
 export function biomeForFloor(level: number): BiomeId {
-  return FLOOR_BIOMES[(level - 1) % FLOOR_BIOMES.length] ?? 'crypt';
+  const index = Math.floor((level - 1) / FLOORS_PER_BIOME) % FLOOR_BIOMES.length;
+  return FLOOR_BIOMES[index] ?? 'crypt';
+}
+
+/** 1..FLOORS_PER_BIOME: position of a floor inside its biome. */
+export function floorInBiome(level: number): number {
+  return ((level - 1) % FLOORS_PER_BIOME) + 1;
+}
+
+/** 0 for the first run through the biomes, 1+ in endless mode. */
+export function loopOf(level: number): number {
+  return Math.floor((level - 1) / RUN_FLOORS);
 }

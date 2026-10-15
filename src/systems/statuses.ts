@@ -3,6 +3,7 @@ import type { GameWorld } from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import type { Sim } from '../game/sim';
 import { dealDamage } from './damage';
+import { enemyDef } from '../data/enemies';
 
 /** Applies or refreshes a status (re-applying keeps the longer duration). */
 export function applyStatus(
@@ -14,6 +15,12 @@ export function applyStatus(
 ): void {
   const set = sim.world.get(e, 'statuses');
   if (!set) return;
+  // Bosses resist control.
+  const ai = sim.world.get(e, 'enemy');
+  if (id === 'stun' && ai) {
+    const def = enemyDef(ai.defId);
+    if (def.behavior === 'boss') ticks = Math.max(1, Math.round(ticks * def.stunResist));
+  }
   const existing = set.list.find((s) => s.id === id);
   if (existing) {
     existing.ticks = Math.max(existing.ticks, ticks);

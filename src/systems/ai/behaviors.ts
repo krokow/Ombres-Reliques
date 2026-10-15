@@ -134,7 +134,13 @@ export function rangedBehavior(ctx: AgentCtx, def: RangedEnemyDef): void {
         const angle = angleTo(ctx, ai.aimX, ai.aimY);
         const x = t.x + Math.cos(angle) * ctx.body.radius;
         const y = t.y + Math.sin(angle) * ctx.body.radius;
-        spawnEnemyProjectile(sim, ctx.e, x, y, angle, def.projectile, ctx.damageMult);
+        // Fan of projectiles when the enemy has a volley (Tireur d'épines).
+        const count = def.volley?.count ?? 1;
+        const spread = def.volley?.spread ?? 0;
+        for (let i = 0; i < count; i++) {
+          const a = count === 1 ? angle : angle + (i / (count - 1) - 0.5) * spread;
+          spawnEnemyProjectile(sim, ctx.e, x, y, a, def.projectile, ctx.damageMult);
+        }
         sim.events.push({ type: 'enemyShoot', x, y, angle });
         setPhase(ai, 'recover');
       }

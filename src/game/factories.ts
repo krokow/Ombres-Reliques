@@ -2,7 +2,7 @@ import { CLASSES, SHADOW_BLADE, type ClassId } from '../data/classes';
 import type { StatusApplication } from '../data/statuses';
 import { emptyMods } from '../data/mods';
 import { LOOT } from '../data/items';
-import { DUNGEON } from '../data/dungeon';
+import { difficultyFor } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
 import {
@@ -124,11 +124,11 @@ export function spawnEnemy(
   const mods = opts.elite ?? [];
   const isElite = mods.length > 0;
   const level = opts.level ?? 1;
-  let hp =
-    def.maxHp * (isElite ? ELITE.hpMult : 1) * (1 + DUNGEON.scaling.hpPerFloor * (level - 1));
+  const diff = difficultyFor(level);
+  let hp = def.maxHp * (isElite ? ELITE.hpMult : 1) * diff.hpMult;
   let weight = def.weight;
   let speedMult = 1;
-  let damageMult = 1 + DUNGEON.scaling.damagePerFloor * (level - 1);
+  let damageMult = diff.damageMult;
   const elite = { mods: [...mods], lifesteal: 0, explodesOnDeath: false };
   for (const m of mods) {
     const mod: {
@@ -184,6 +184,19 @@ export function spawnEnemy(
     speedMult,
   });
   if (isElite) w.add(e, 'elite', elite);
+  if (def.behavior === 'boss') {
+    w.add(e, 'boss', {
+      phase: 0,
+      step: 'rest',
+      ticks: 0,
+      next: 0,
+      current: 0,
+      aimX: x,
+      aimY: y,
+      dirX: 1,
+      dirY: 0,
+    });
+  }
   if (opts.summoner !== undefined) w.add(e, 'minion', { summoner: opts.summoner });
   w.add(e, 'renderable', { kind: id });
   return e;
