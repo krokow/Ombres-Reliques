@@ -36,5 +36,15 @@ docs/       DESIGN.md, ROADMAP.md
 
 ## Contrôles
 
-ZQSD / WASD (touches physiques : fonctionne quelle que soit la disposition), souris pour viser.
-F3 : overlay debug · F4 : hitboxes · `²` / `` ` `` : console.
+| Action                                   | Touche                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Bouger                                   | ZQSD (AZERTY) / WASD (QWERTY) / flèches — touches physiques |
+| Viser                                    | souris                                                      |
+| Combo de mêlée                           | clic gauche (maintenir pour enchaîner)                      |
+| Shuriken                                 | clic droit                                                  |
+| Dash                                     | Espace                                                      |
+| Nouvelle run / même seed (après la mort) | Entrée / Retour arrière                                     |
+| Son on/off                               | M                                                           |
+| Overlay debug / hitboxes / console       | F3 / F4 / `²`                                               |
+
+Commandes console : `help`, `heal`, `god`, `spawn ghoul 5`, `killall`, `dash`, `seed [valeur]`, `restart`.

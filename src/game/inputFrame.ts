@@ -9,8 +9,23 @@ export interface InputFrame {
   /** Aim point in world coordinates. */
   aimX: number;
   aimY: number;
+  /** Held state: holding attack keeps the combo going. */
+  attackHeld: boolean;
+  /** Edge-triggered presses (true for exactly one tick). */
+  attackPressed: boolean;
+  rangedPressed: boolean;
+  dashPressed: boolean;
 }
 
 export function emptyInput(): InputFrame {
-  return { moveX: 0, moveY: 0, aimX: 0, aimY: 0 };
+  return {
+    moveX: 0,
+    moveY: 0,
+    aimX: 0,
+    aimY: 0,
+    attackHeld: false,
+    attackPressed: false,
+    rangedPressed: false,
+    dashPressed: false,
+  };
 }

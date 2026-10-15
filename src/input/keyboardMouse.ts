@@ -44,15 +44,6 @@ export class KeyboardMouse {
     return hit;
   }
 
-  /** Mouse buttons are tracked as pseudo-codes "Mouse0", "Mouse2"… */
-  isMouseHeld(button: number): boolean {
-    return this.held.has(`Mouse${button}`);
-  }
-
-  consumeMousePressed(button: number): boolean {
-    return this.pressedBuffer.delete(`Mouse${button}`);
-  }
-
   clearEdges(): void {
     this.pressedBuffer.clear();
   }

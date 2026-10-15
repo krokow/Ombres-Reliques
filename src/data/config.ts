@@ -11,10 +11,9 @@ export const CAMERA = {
   /** Fraction of the cursor offset the camera leans towards. */
   aimLookahead: 0.18,
   maxLookahead: 140,
-} as const;
-
-export const PLAYER_PROTOTYPE = {
-  moveSpeed: 220,
-  size: 24,
-  color: '#9b7bff',
+  zoom: 1.6,
+  /** Max shake offset (px) and rotation (rad) at full trauma; trauma decays per second. */
+  shakeOffset: 14,
+  shakeAngle: 0.025,
+  traumaDecay: 1.8,
 } as const;
