@@ -1,0 +1,70 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07060b;
+  color: #e8e4f0;
+  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+#game {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.debug-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 6px 10px;
+  background: rgb(0 0 0 / 60%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.debug-console {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  pointer-events: auto;
+  background: rgb(0 0 0 / 80%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.debug-console__log {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  white-space: pre-wrap;
+}
+
+.debug-console input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-top: 1px solid rgb(255 255 255 / 15%);
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.hidden {
+  display: none;
+}
