@@ -4,7 +4,11 @@ import { lerp, normalize } from './core/math';
 import { normalizeSeed, seedFromNumber } from './core/rng';
 import { CLASSES } from './data/classes';
 import { ENGINE } from './data/config';
-import { ENEMIES, isEnemyId } from './data/enemies';
+import { ELITE_MODIFIERS, type EliteModifierId } from './data/elites';
+import { ENEMIES, isEnemyId, type EnemyId } from './data/enemies';
+import { STATUSES, type StatusId } from './data/statuses';
+import { applyStatus } from './systems/statuses';
+import { loadKeyLayout } from './input/keyLabels';
 import { Game } from './game/game';
 import { spawnGroup } from './systems/waves';
 import { emptyInput, type InputFrame } from './game/inputFrame';
@@ -51,6 +55,12 @@ function newGame(seed: string): Game {
   return g;
 }
 
+/** Case-insensitive lookup so "bonearcher" works in the console. */
+function resolveEnemyId(raw: string): EnemyId | null {
+  const id = Object.keys(ENEMIES).find((k) => k.toLowerCase() === raw.toLowerCase());
+  return id && isEnemyId(id) ? id : null;
+}
+
 function registerCommands(): void {
   const heal = (): string => {
     const h = game.world.req(game.player, 'health');
@@ -76,9 +86,40 @@ function registerCommands(): void {
   });
   commands.register('spawn', {
     help: `spawn <${Object.keys(ENEMIES).join('|')}> [n]`,
-    run: ([id = 'ghoul', n = '1']) => {
-      if (!isEnemyId(id)) return `Ennemi inconnu : ${id}`;
+    run: ([raw = 'ghoul', n = '1']) => {
+      const id = resolveEnemyId(raw);
+      if (!id) return `Ennemi inconnu : ${raw}`;
       return `${spawnGroup(game, id, Math.max(1, Number(n) || 1))} ${ENEMIES[id].name}(s) invoquée(s)`;
+    },
+  });
+  commands.register('elite', {
+    help: `elite <ennemi> [${Object.keys(ELITE_MODIFIERS).join('|')}] — invoque une élite`,
+    run: ([raw = 'ghoul', mod]) => {
+      const id = resolveEnemyId(raw);
+      if (!id) return `Ennemi inconnu : ${raw}`;
+      const mods = Object.keys(ELITE_MODIFIERS) as EliteModifierId[];
+      const chosen =
+        mod && (mods as string[]).includes(mod)
+          ? (mod as EliteModifierId)
+          : game.rng.spawn.pick(mods);
+      spawnGroup(game, id, 1, { elite: [chosen] });
+      return `${ENEMIES[id].name} ${ELITE_MODIFIERS[chosen].name} invoquée`;
+    },
+  });
+  commands.register('ult', {
+    help: 'remplit l’énergie (Exécution prête)',
+    run: () => {
+      const p = game.world.req(game.player, 'player');
+      p.energy = CLASSES[p.classId].maxEnergy;
+      return 'Énergie au max';
+    },
+  });
+  commands.register('status', {
+    help: `status <${Object.keys(STATUSES).join('|')}> [ticks] — s'applique un statut`,
+    run: ([id = '', ticks = '180']) => {
+      if (!Object.hasOwn(STATUSES, id)) return `Statut inconnu : ${id}`;
+      applyStatus(game, game.player, id as StatusId, Number(ticks) || 180);
+      return `Statut ${id} appliqué`;
     },
   });
   commands.register('killall', {
@@ -99,6 +140,7 @@ function registerCommands(): void {
   });
 }
 registerCommands();
+void loadKeyLayout();
 
 function sampleInput(): InputFrame {
   const dir = normalize(
@@ -115,11 +157,12 @@ function sampleInput(): InputFrame {
     attackPressed: input.consumePressed('attack'),
     rangedPressed: input.consumePressed('ranged'),
     dashPressed: input.consumePressed('dash'),
+    skillPressed: input.consumePressed('skill'),
+    ultimatePressed: input.consumePressed('ultimate'),
   };
 }
 
 function handleMetaKeys(): void {
-  if (input.consumePressed('toggleConsole')) debug.toggleConsole();
   if (input.consumePressed('toggleDebug')) debug.toggle();
   if (input.consumePressed('toggleHitboxes')) debug.showHitboxes = !debug.showHitboxes;
   if (input.consumePressed('mute')) debug.print(sfx.toggleMute() ? 'Son coupé' : 'Son activé');
@@ -178,8 +221,8 @@ runLoop(clock, {
       `Seed     ${game.seed}`,
       `Joueur   ${t.x.toFixed(0)}, ${t.y.toFixed(0)}${game.godMode ? '  GOD' : ''}`,
       ``,
-      `ZQSD/WASD bouger · clic G attaque · clic D shuriken`,
-      `Espace dash · M son · F3 debug · F4 hitboxes · ² console`,
+      `ZQSD/WASD bouger · clic G combo · clic D shuriken · Espace dash`,
+      `A (AZERTY)/Q voile · R exécution · M son · F3/F4/² debug`,
     ]);
   },
 });

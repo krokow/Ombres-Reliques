@@ -5,7 +5,7 @@ import { SHADOW_BLADE } from '../src/data/classes';
 import { ENEMIES } from '../src/data/enemies';
 import { Game } from '../src/game/game';
 import { spawnEnemy } from '../src/game/factories';
-import type { InputFrame } from '../src/game/inputFrame';
+import { emptyInput, type InputFrame } from '../src/game/inputFrame';
 import { DT, playerPos, run, sandbox, settle } from './helpers';
 
 describe('player movement', () => {
@@ -33,15 +33,7 @@ describe('dash', () => {
     const game = sandbox();
     const start = playerPos(game);
     const aim = { aimX: start.x + 500, aimY: start.y };
-    game.step({
-      ...aim,
-      moveX: 0,
-      moveY: 0,
-      attackHeld: false,
-      attackPressed: false,
-      rangedPressed: false,
-      dashPressed: true,
-    });
+    game.step({ ...emptyInput(), ...aim, dashPressed: true });
     const dash = game.world.req(game.player, 'dash');
     expect(dash.charges).toBe(SHADOW_BLADE.dash.maxCharges - 1);
     expect(game.world.req(game.player, 'health').invuln).toBeGreaterThan(0);
@@ -112,8 +104,7 @@ describe('melee combat', () => {
       // Keep aiming at the (knocked back) enemy.
       const et = game.world.get(enemy, 'transform');
       game.step({
-        moveX: 0,
-        moveY: 0,
+        ...emptyInput(),
         aimX: et?.x ?? p.x + 100,
         aimY: et?.y ?? p.y,
         attackHeld: true,
@@ -127,7 +118,10 @@ describe('melee combat', () => {
     expect(dash.charges).toBe(SHADOW_BLADE.dash.refundOnKill);
     const player = game.world.req(game.player, 'player');
     expect(player.kills).toBe(1);
-    expect(player.energy).toBe(SHADOW_BLADE.energyOnKill);
+    // Energy fills from the kill AND from all damage dealt (design 1c).
+    expect(player.energy).toBeCloseTo(
+      SHADOW_BLADE.energyOnKill + ENEMIES.ghoul.maxHp * SHADOW_BLADE.energyPerDamage,
+    );
   });
 
   it('a dash cancels the current swing', () => {
@@ -202,6 +196,8 @@ describe('determinism', () => {
         attackPressed: script.chance(0.1),
         rangedPressed: script.chance(0.05),
         dashPressed: script.chance(0.03),
+        skillPressed: script.chance(0.01),
+        ultimatePressed: script.chance(0.01),
       };
       game.step(input);
       game.drainEvents();

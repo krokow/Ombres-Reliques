@@ -11,7 +11,16 @@ type SoundName =
   | 'hurt'
   | 'refund'
   | 'wall'
-  | 'death';
+  | 'death'
+  | 'veil'
+  | 'ambush'
+  | 'blink'
+  | 'ultStart'
+  | 'ultFail'
+  | 'explosion'
+  | 'shoot'
+  | 'summon'
+  | 'tick';
 
 /**
  * Procedural sound effects via Web Audio: oscillators + filtered noise, no
@@ -58,7 +67,24 @@ export class Sfx {
       case 'swing':
         return this.play(ev.combo === 2 ? 'swingHeavy' : 'swing');
       case 'hit':
+        if (ev.dot) return this.play('tick');
         return this.play(ev.byPlayer ? (ev.crit ? 'crit' : 'hit') : 'hurt');
+      case 'veil':
+        return this.play('veil');
+      case 'ambush':
+        return this.play('ambush');
+      case 'blink':
+        return this.play('blink');
+      case 'ultStart':
+        return this.play('ultStart');
+      case 'ultFail':
+        return this.play('ultFail');
+      case 'explosion':
+        return this.play('explosion');
+      case 'enemyShoot':
+        return this.play('shoot');
+      case 'summon':
+        return this.play('summon');
       case 'kill':
         return this.play('kill');
       case 'dash':
@@ -115,6 +141,37 @@ export class Sfx {
         break;
       case 'wall':
         this.tone(t, 'square', 1200, 600, 0.03, 0.08);
+        break;
+      case 'veil':
+        this.noiseSweep(t, 0.5, 300, 1200, 0.35, 'lowpass');
+        break;
+      case 'ambush':
+        this.tone(t, 'triangle', 660, 990, 0.12, 0.18);
+        break;
+      case 'blink':
+        this.tone(t, 'square', 1800, 300, 0.08, 0.15);
+        this.noiseSweep(t, 0.08, 6000, 2000, 0.25, 'highpass');
+        break;
+      case 'ultStart':
+        this.tone(t, 'sawtooth', 90, 45, 0.5, 0.3);
+        this.tone(t, 'sine', 440, 880, 0.25, 0.15);
+        break;
+      case 'ultFail':
+        this.tone(t, 'square', 150, 140, 0.12, 0.1);
+        break;
+      case 'explosion':
+        this.tone(t, 'sine', 120, 30, 0.5, 0.9);
+        this.noiseSweep(t, 0.6, 2500, 120, 0.7, 'lowpass');
+        break;
+      case 'shoot':
+        this.tone(t, 'triangle', 500, 200, 0.08, 0.15);
+        break;
+      case 'summon':
+        this.tone(t, 'sine', 220, 330, 0.4, 0.15);
+        this.tone(t + 0.1, 'sine', 233, 349, 0.4, 0.12);
+        break;
+      case 'tick':
+        this.tone(t, 'sine', 300, 250, 0.04, 0.08);
         break;
       case 'death':
         this.tone(t, 'sawtooth', 300, 40, 0.9, 0.4);

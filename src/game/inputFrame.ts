@@ -15,6 +15,8 @@ export interface InputFrame {
   attackPressed: boolean;
   rangedPressed: boolean;
   dashPressed: boolean;
+  skillPressed: boolean;
+  ultimatePressed: boolean;
 }
 
 export function emptyInput(): InputFrame {
@@ -27,5 +29,7 @@ export function emptyInput(): InputFrame {
     attackPressed: false,
     rangedPressed: false,
     dashPressed: false,
+    skillPressed: false,
+    ultimatePressed: false,
   };
 }

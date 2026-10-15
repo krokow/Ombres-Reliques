@@ -33,12 +33,49 @@
 - **Reset au kill** : +1 charge de dash, +énergie. Valeurs dans `data/classes.ts`.
 - **Poids** : divise le knockback reçu et la poussée de foule ; le joueur est plus lourd que les goules.
 
+## Kit de la Lame d'Ombre (M2)
+
+| Slot               | Touche         | Effet                             |
+| ------------------ | -------------- | --------------------------------- |
+| Attaque            | clic G         | combo 3 coups ; clic D : shuriken |
+| Actif 1 (mobilité) | Espace         | dash à charges, reset au kill     |
+| Actif 2            | A (AZERTY) / Q | Voile de fumée                    |
+| Ultime             | R              | Exécution                         |
+| Passif             | —              | dos = crit garanti + marque       |
+
+- **E est réservé à l'interaction** (coffres, autels, boutique) à partir de M6 ; chaque classe aura donc
+  sa mobilité sur Espace, sa compétence sur A, son ultime sur R.
+- **Ultime = énergie (choix 1c)** : kills (+15) et dégâts infligés (+0,2/pt). Une seule ressource lisible.
+- **Voile (choix 2b)** : l'ennemi qui perd sa cible dans la fumée va au voile et frappe des points
+  aléatoires dedans. Ces frappes restent télégraphiées et ont un cooldown ×1,6 (`AI.blindCooldownMult`)
+  pour que le voile garde sa valeur défensive.
+- **Embuscade** : accordée en sortant du voile _ou_ quand il expire sur soi ; consommée par le premier coup
+  qui touche (pas par un coup dans le vide).
+- **Exécution** : cibles verrouillées au lancement, priorité marque > % PV ; les cibles mortes entre-temps
+  sont sautées ; échec sans cible = pas de coût.
+
+## Combat (M2)
+
+- **`dealDamage` est l'unique point d'entrée** des dégâts : toute règle (marque, vol de vie, énergie,
+  effets de mort) est donc garantie quelle que soit la source.
+- **Équipe `neutral`** pour les explosions : elles blessent tout le monde ; `creditPlayer` attribue les
+  kills au joueur quand c'est lui qui a déclenché la mort (réactions en chaîne récompensées).
+- **Stagger vs stun** : le stagger est une réaction courte aux coups (interrompt wind-up et canalisation),
+  le stun est un statut. Une mèche allumée n'est jamais interrompue.
+- **Élites** : `ELITE` (bonus de base) × modificateurs ; tout est dans `data/elites.ts`.
+
 ## Navigation
 
 - Flow field BFS 8-directions (sans couper les coins) vers la tuile du joueur, recalculé seulement
   quand le joueur change de tuile : un calcul pour tous les poursuivants.
 - Si les deux bords du corps ont la ligne de vue → ligne droite (mouvement naturel en espace ouvert).
-- A* générique arrivera en M2 pour les cibles autres que le joueur (perte de cible, fuite, invocations).
+- A* (tas binaire, heuristique octile, sans couper les coins) pour tout autre but : dernière position
+  connue, points dans le voile. Chemin mis en cache, recalculé au plus toutes les 20 ticks ou si le but
+  change de tuile.
+- Steering : direction de seek + répulsion des voisins (anti-empilement) ; la séparation positionnelle
+  reste en filet de sécurité.
+- Perception : un ennemi « alerté » suit le joueur tant qu'il n'est pas invisible et reste dans
+  `sightRange × 1.6` ; sinon il cherche la dernière position connue puis abandonne.
 
 ## Présentation
 

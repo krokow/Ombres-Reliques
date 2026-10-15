@@ -6,10 +6,19 @@ import { World } from '../ecs/world';
 import type { Components, GameWorld } from '../ecs/components';
 import type { Entity } from '../ecs/world';
 import { resolveHitboxes, tickInvulnerability, updateProjectiles } from '../systems/combat';
-import { enemyAI } from '../systems/enemyAI';
+import { enemyAI } from '../systems/ai';
 import { FlowField } from '../systems/navigation';
 import { integrateMotion, separateBodies, snapshotTransforms } from '../systems/movement';
-import { playerBuffer, playerCombo, playerDash, playerMove, playerRanged } from '../systems/player';
+import {
+  isExecuting,
+  playerBuffer,
+  playerCombo,
+  playerDash,
+  playerMove,
+  playerRanged,
+} from '../systems/player';
+import { playerUltimate, playerVeil, updateZones } from '../systems/skills';
+import { tickStatuses } from '../systems/statuses';
 import { updateWaves, type WaveState } from '../systems/waves';
 import type { GameEvent } from './events';
 import { spawnPlayer } from './factories';
@@ -28,7 +37,7 @@ export interface GameOptions {
 export class Game implements Sim {
   readonly world: GameWorld = new World<Components>();
   readonly map: TileMap;
-  readonly rng: { readonly combat: Rng; readonly spawn: Rng };
+  readonly rng: { readonly combat: Rng; readonly spawn: Rng; readonly ai: Rng };
   readonly player: Entity;
   /** Events produced since the presentation layer last drained them. */
   readonly events: GameEvent[] = [];
@@ -45,7 +54,7 @@ export class Game implements Sim {
     options: GameOptions = {},
   ) {
     const root = Rng.fromString(seed);
-    this.rng = { combat: root.fork('combat'), spawn: root.fork('spawn') };
+    this.rng = { combat: root.fork('combat'), spawn: root.fork('spawn'), ai: root.fork('ai') };
     this.wavesEnabled = options.waves ?? true;
     const { map, markers } = TileMap.fromLayout(TEST_ARENA.layout, ENGINE.tileSize);
     this.map = map;
@@ -72,25 +81,31 @@ export class Game implements Sim {
       this.hitstopTicks--;
       return;
     }
-    if (alive) {
+    if (alive && isExecuting(this)) {
+      playerUltimate(this);
+    } else if (alive) {
       playerMove(this, input);
       playerDash(this, input);
       playerCombo(this);
       playerRanged(this);
+      playerVeil(this);
+      playerUltimate(this);
     } else {
       const v = this.world.req(this.player, 'velocity');
       v.x = 0;
       v.y = 0;
     }
+    updateZones(this);
     const pt = this.world.req(this.player, 'transform');
     this.nav.update(Math.floor(pt.x / this.map.tileSize), Math.floor(pt.y / this.map.tileSize));
-    enemyAI(this, alive);
+    enemyAI(this);
     integrateMotion(this);
     separateBodies(this);
     resolveHitboxes(this);
     updateProjectiles(this);
+    tickStatuses(this);
     tickInvulnerability(this);
-    if (this.wavesEnabled && alive) updateWaves(this, this.waves);
+    if (this.wavesEnabled && this.playerAlive) updateWaves(this, this.waves);
     this.world.flush();
   }
 

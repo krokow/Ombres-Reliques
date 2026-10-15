@@ -22,6 +22,32 @@ export interface ClassDef {
   backstabMultiplier: number;
   maxEnergy: number;
   energyOnKill: number;
+  /** Energy gained per point of damage dealt (the ultimate fills from kills AND damage). */
+  energyPerDamage: number;
+  /** Active skill on the "A" key (physical KeyQ). */
+  veil: {
+    cooldownTicks: number;
+    radius: number;
+    durationTicks: number;
+    /** Duration of the guaranteed-crit window granted when leaving the veil. */
+    ambushTicks: number;
+  };
+  /** Passive: backstabs mark the target. */
+  passive: { markTicks: number };
+  /** Ultimate on "R": chain of teleport strikes. */
+  ultimate: {
+    energyCost: number;
+    maxTargets: number;
+    radius: number;
+    hopTicks: number;
+    damage: number;
+    /** Damage × (1 + lowHpBonus × missing HP fraction). */
+    lowHpBonus: number;
+    knockback: number;
+    stagger: number;
+    /** I-frames kept after the last hop. */
+    endInvulnTicks: number;
+  };
   /** I-frames after taking a hit. */
   hurtInvulnTicks: number;
   palette: { body: string; trim: string; eyes: string };
@@ -97,6 +123,20 @@ export const SHADOW_BLADE: ClassDef = {
   backstabMultiplier: 1.6,
   maxEnergy: 100,
   energyOnKill: 15,
+  energyPerDamage: 0.2,
+  veil: { cooldownTicks: 600, radius: 78, durationTicks: 240, ambushTicks: 150 },
+  passive: { markTicks: 240 },
+  ultimate: {
+    energyCost: 100,
+    maxTargets: 5,
+    radius: 300,
+    hopTicks: 9,
+    damage: 26,
+    lowHpBonus: 1.5,
+    knockback: 120,
+    stagger: 30,
+    endInvulnTicks: 30,
+  },
   hurtInvulnTicks: 40,
   palette: { body: '#241c38', trim: '#9b7bff', eyes: '#7ff6ff' },
 };

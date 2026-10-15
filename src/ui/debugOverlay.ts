@@ -26,6 +26,13 @@ export class DebugOverlay {
     this.console.append(this.log, this.input);
     root.append(this.panel, this.console);
 
+    // Opened straight from the keydown (not on the next frame) so no typed char is lost.
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Backquote' && !this.consoleOpen) {
+        e.preventDefault();
+        this.toggleConsole();
+      }
+    });
     this.input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.code === 'Enter') {

@@ -1,10 +1,16 @@
 import { normalize } from '../core/math';
 import { CLASSES } from '../data/classes';
-import { COMBAT, FEEL } from '../data/combat';
+import { COMBAT } from '../data/combat';
 import { spawnHitbox, spawnShuriken } from '../game/factories';
 import type { InputFrame } from '../game/inputFrame';
 import type { Sim } from '../game/sim';
 import { steer } from './movement';
+import { moveMultiplier } from './statuses';
+
+/** True while the ultimate plays out: it owns the character. */
+export function isExecuting(sim: Sim): boolean {
+  return sim.world.get(sim.player, 'player')?.execution != null;
+}
 
 /** Records presses for a few ticks so an input slightly too early still happens. */
 export function playerBuffer(sim: Sim, input: InputFrame): void {
@@ -13,6 +19,10 @@ export function playerBuffer(sim: Sim, input: InputFrame): void {
   b.attack = Math.max(0, b.attack - 1);
   b.ranged = Math.max(0, b.ranged - 1);
   b.dash = Math.max(0, b.dash - 1);
+  b.skill = Math.max(0, b.skill - 1);
+  b.ultimate = Math.max(0, b.ultimate - 1);
+  if (input.skillPressed) b.skill = COMBAT.inputBufferTicks;
+  if (input.ultimatePressed) b.ultimate = COMBAT.inputBufferTicks;
   if (input.attackPressed) b.attack = COMBAT.inputBufferTicks;
   // Holding the button keeps chaining without re-clicking.
   else if (input.attackHeld) b.attack = Math.max(b.attack, 1);
@@ -30,7 +40,7 @@ export function playerMove(sim: Sim, input: InputFrame): void {
   w.req(e, 'facing').angle = Math.atan2(input.aimY - t.y, input.aimX - t.x);
   if (w.req(e, 'dash').active > 0) return;
   const attacking = w.req(e, 'combo').tick >= 0;
-  const speed = mover.moveSpeed * (attacking ? def.attackMoveFactor : 1);
+  const speed = mover.moveSpeed * (attacking ? def.attackMoveFactor : 1) * moveMultiplier(w, e);
   steer(v, input.moveX * speed, input.moveY * speed, mover.accel, mover.decel, sim.dt);
 }
 
@@ -185,21 +195,4 @@ export function playerRanged(sim: Sim): void {
   const y = t.y + Math.sin(angle) * def.radius;
   spawnShuriken(sim, e, x, y, angle);
   sim.events.push({ type: 'throw', x, y, angle });
-}
-
-/** Rewards a kill by the player: the assassin's reset loop. */
-export function onPlayerKill(sim: Sim): void {
-  const w = sim.world;
-  const player = w.req(sim.player, 'player');
-  const def = CLASSES[player.classId];
-  const dash = w.req(sim.player, 'dash');
-  player.kills++;
-  player.energy = Math.min(def.maxEnergy, player.energy + def.energyOnKill);
-  if (dash.charges < def.dash.maxCharges) {
-    dash.charges = Math.min(def.dash.maxCharges, dash.charges + def.dash.refundOnKill);
-    dash.recharge = 0;
-    const t = w.req(sim.player, 'transform');
-    sim.events.push({ type: 'dashRefund', x: t.x, y: t.y });
-  }
-  sim.hitstop(FEEL.hitstop.kill);
 }

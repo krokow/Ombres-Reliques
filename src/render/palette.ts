@@ -27,4 +27,7 @@ export const PALETTE = {
   energy: '#7ff6ff',
   hudText: '#e8e4f0',
   hudDim: '#8a83a3',
+  poison: '#9bd46a',
+  explosion: '#ffb347',
+  summon: '#c77dff',
 } as const;

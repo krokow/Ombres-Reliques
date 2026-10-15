@@ -1,6 +1,7 @@
 import { Rng } from '../core/rng';
 import type { Entity } from '../ecs/world';
 import { FEEL } from '../data/combat';
+import { ENEMIES, isEnemyId } from '../data/enemies';
 import type { GameEvent } from '../game/events';
 import type { Camera } from './camera';
 import { PALETTE } from './palette';
@@ -50,6 +51,15 @@ export interface Ghost {
   maxLife: number;
 }
 
+export interface Blink {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  life: number;
+  maxLife: number;
+}
+
 interface Ring {
   x: number;
   y: number;
@@ -70,6 +80,9 @@ export class Effects {
   slashes: Slash[] = [];
   ghosts: Ghost[] = [];
   rings: Ring[] = [];
+  blinks: Blink[] = [];
+  /** Brief full-screen darkening when the ultimate starts. */
+  ultFlash = 0;
   /** Remaining white-flash time per entity (seconds). */
   readonly flashes = new Map<Entity, number>();
   /** Full-screen red flash when the player is hurt. */
@@ -89,6 +102,10 @@ export class Effects {
         this.burst(ev.x, ev.y, 10, PALETTE.dust, 90, 0.35, Math.atan2(-ev.dirY, -ev.dirX), 1.2);
         break;
       case 'hit': {
+        if (ev.dot) {
+          this.text(ev.x, ev.y - 12, `${ev.damage}`, PALETTE.poison, 9);
+          break;
+        }
         this.flashes.set(ev.target, 0.09);
         const angle = Math.atan2(ev.dirY, ev.dirX);
         if (ev.byPlayer) {
@@ -123,8 +140,11 @@ export class Effects {
       case 'kill':
         camera.addTrauma(FEEL.shake.kill);
         this.flashes.delete(ev.target);
-        this.burst(ev.x, ev.y, 22, PALETTE.ghoulBlood, 260, 0.6, 0, Math.PI * 2);
-        this.burst(ev.x, ev.y, 10, PALETTE.ghoulDark, 140, 0.8, 0, Math.PI * 2);
+        {
+          const look = isEnemyId(ev.kind) ? ENEMIES[ev.kind].palette : null;
+          this.burst(ev.x, ev.y, 22, look?.body ?? PALETTE.ghoulBlood, 260, 0.6, 0, Math.PI * 2);
+          this.burst(ev.x, ev.y, 10, look?.dark ?? PALETTE.ghoulDark, 140, 0.8, 0, Math.PI * 2);
+        }
         this.rings.push({
           x: ev.x,
           y: ev.y,
@@ -155,6 +175,69 @@ export class Effects {
       case 'wave':
         this.banner = { text: `Vague ${ev.wave}`, life: 1.6, maxLife: 1.6 };
         break;
+      case 'explosion':
+        camera.addTrauma(FEEL.shake.explosion);
+        this.burst(ev.x, ev.y, 26, PALETTE.explosion, ev.radius * 5, 0.45, 0, Math.PI * 2, true);
+        this.burst(ev.x, ev.y, 14, PALETTE.poison, ev.radius * 2.5, 0.8, 0, Math.PI * 2);
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.radius,
+          color: PALETTE.explosion,
+          life: 0.3,
+          maxLife: 0.3,
+        });
+        break;
+      case 'enemyShoot':
+        this.burst(ev.x, ev.y, 3, PALETTE.shuriken, 80, 0.15, ev.angle, 0.5);
+        break;
+      case 'summon':
+        this.burst(ev.x, ev.y, 12, PALETTE.summon, 120, 0.5, -Math.PI / 2, Math.PI);
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 18,
+          color: PALETTE.summon,
+          life: 0.35,
+          maxLife: 0.35,
+        });
+        break;
+      case 'veil':
+        this.burst(ev.x, ev.y, 24, PALETTE.dust, ev.radius * 2.5, 0.6, 0, Math.PI * 2);
+        break;
+      case 'ambush':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 30,
+          color: PALETTE.crit,
+          life: 0.35,
+          maxLife: 0.35,
+        });
+        this.text(ev.x, ev.y - 24, 'EMBUSCADE', PALETTE.crit, 10);
+        break;
+      case 'ambushStrike':
+        this.burst(ev.x, ev.y, 10, PALETTE.crit, 260, 0.3, 0, Math.PI * 2, true);
+        break;
+      case 'ultStart':
+        this.ultFlash = 0.35;
+        camera.addTrauma(FEEL.shake.execution);
+        break;
+      case 'ultFail':
+        this.text(
+          ev.x,
+          ev.y - 24,
+          ev.reason === 'energy' ? 'Énergie insuffisante' : 'Aucune cible',
+          PALETTE.hudDim,
+          10,
+        );
+        break;
+      case 'blink':
+        this.blinks.push({ ...ev, life: 0.25, maxLife: 0.25 });
+        this.burst(ev.toX, ev.toY, 10, PALETTE.refund, 160, 0.3, 0, Math.PI * 2, true);
+        camera.addTrauma(FEEL.shake.execution);
+        break;
+      case 'status':
       case 'windup':
         break;
     }
@@ -181,6 +264,8 @@ export class Effects {
     for (const s of this.slashes) s.life -= dt;
     for (const g of this.ghosts) g.life -= dt;
     for (const r of this.rings) r.life -= dt;
+    for (const b of this.blinks) b.life -= dt;
+    this.ultFlash = Math.max(0, this.ultFlash - dt);
     for (const [e, t] of this.flashes) {
       if (t - dt <= 0) this.flashes.delete(e);
       else this.flashes.set(e, t - dt);
@@ -192,6 +277,7 @@ export class Effects {
     this.slashes = this.slashes.filter((s) => s.life > 0);
     this.ghosts = this.ghosts.filter((g) => g.life > 0);
     this.rings = this.rings.filter((r) => r.life > 0);
+    this.blinks = this.blinks.filter((b) => b.life > 0);
   }
 
   drawParticles(ctx: CanvasRenderingContext2D): void {

@@ -29,16 +29,18 @@ export interface DamageRoll {
 /**
  * Backstabs are guaranteed crits using the backstab multiplier (no stacking
  * with the regular crit multiplier, to keep burst readable and balanceable).
+ * `forceCrit` (e.g. Ambush) guarantees a regular crit.
  */
 export function rollDamage(
   base: number,
   stats: DamageStats | null,
   backstab: boolean,
   rng: Rng,
+  forceCrit = false,
 ): DamageRoll {
   if (!stats) return { amount: Math.round(base), crit: false };
   if (backstab) return { amount: Math.round(base * stats.backstabMultiplier), crit: true };
-  const crit = rng.chance(stats.critChance);
+  const crit = forceCrit || rng.chance(stats.critChance);
   return { amount: Math.round(crit ? base * stats.critMultiplier : base), crit };
 }
 

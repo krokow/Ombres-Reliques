@@ -45,3 +45,32 @@
 
 - Voile de fumée, Exécution (ultime), énergie consommée → M2 (nécessitent statuts + perte de cible de l'IA).
 - A* générique + steering anti-empilement → M2 (le flow field couvre la poursuite du joueur).
+
+## M2 – livré
+
+- **Pipeline de dégâts unique** (`systems/damage.ts`) : multiplicateurs de statuts, knockback, hit-stop,
+  i-frames, énergie, vol de vie, morts et effets de mort au même endroit (coups, DoT, explosions, ultime).
+- **Statuts** data-driven (`data/statuses.ts`) : ralenti, étourdi, peste (DoT), marque, invisible, embuscade.
+- **Lame d'Ombre complète** :
+  - Voile de fumée (touche A en AZERTY / Q en QWERTY) : zone d'invisibilité, sortir du voile (ou le voir
+    expirer) = Embuscade → prochaine attaque critique garantie ;
+  - Exécution (R) : jusqu'à 5 téléportations dans le dos, priorité aux cibles marquées puis aux plus
+    blessées, dégâts ×(1 + 1,5 × PV manquants), invulnérable pendant l'enchaînement ;
+  - passif : un coup dans le dos marque la cible (+15 % dégâts subis).
+- **Jauge d'ultime (choix 1c)** : énergie gagnée aux kills ET aux dégâts infligés.
+- **IA** (`systems/ai/`) : perception (alerte, dernière position connue, invisibilité), steering
+  (flow field vers le joueur, A* pour les autres buts, séparation anti-empilement), 4 comportements :
+  - Goule / Larve (mêlée), Archer d'ossuaire (distance, recule, visée qui se verrouille, tir ralentissant),
+  - Boursouflé (kamikaze : mèche, explosion neutre qui empoisonne et blesse aussi les ennemis, explose
+    à retardement quand on le tue → réactions en chaîne créditées au joueur),
+  - Cryptomancien (invocateur : canalisation interruptible, plafond de larves).
+- **Voile vs IA (choix 2b)** : les ennemis qui perdent la cible dans la fumée s'en approchent et frappent
+  des points aléatoires à l'intérieur (télégraphiés, cooldown ×1,6).
+- **Élites** : bonus de base + modificateurs (Enragé, Cuirassé, Vampirique, Instable), auras colorées.
+- **Vagues** tirées d'un pool pondéré par vague, chance d'élite croissante.
+- **A*** (tas binaire, octile, sans couper les coins) testé contre le BFS sur 200 cartes aléatoires.
+- Feel : télégraphes par type, fumée, distorsion d'invisibilité, traits de téléportation, explosions,
+  icônes de statut, HUD des compétences (libellés de touches selon la disposition réelle via
+  `navigator.keyboard.getLayoutMap` quand disponible), sons dédiés.
+- Debug : `elite`, `ult`, `status`, chemins A* affichés avec F4 ; la console s'ouvre sans perdre de frappe.
+- 88 tests.

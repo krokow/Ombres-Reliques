@@ -50,7 +50,7 @@ export class KeyboardMouse {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     const bound = this.codeToActions.has(e.code);
-    if (bound && this.suspended && e.code !== 'Backquote') return;
+    if (this.suspended) return;
     if (bound) e.preventDefault();
     if (!e.repeat) this.pressedBuffer.add(e.code);
     this.held.add(e.code);

@@ -1,5 +1,8 @@
 import { damp } from '../core/math';
 import { CLASSES } from '../data/classes';
+import { KEY_BINDINGS } from '../data/controls';
+import { STATUSES } from '../data/statuses';
+import { keyLabel } from '../input/keyLabels';
 import type { Game } from '../game/game';
 import type { Effects } from './effects';
 import { PALETTE } from './palette';
@@ -49,7 +52,7 @@ export class Hud {
     const x = (width - barW) / 2;
     const y = height - 46;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(x - 6, y - 22, barW + 12, 46);
+    ctx.fillRect(x - 6, y - 20, barW + 12, 44);
 
     // HP.
     ctx.fillStyle = PALETTE.hpBack;
@@ -70,34 +73,87 @@ export class Hud {
     ctx.fillStyle = PALETTE.energy;
     ctx.fillRect(x, y + 15, (barW * player.energy) / def.maxEnergy, 4);
 
-    // Dash charges (diamonds) + recharge progress on the next one.
     ctx.textAlign = 'left';
     ctx.fillStyle = PALETTE.hudDim;
     ctx.fillText(def.name.toUpperCase(), x, y - 12);
-    for (let i = 0; i < def.dash.maxCharges; i++) {
-      const cx = x + barW - 8 - i * 16;
-      const cy = y - 12;
-      const filled = def.dash.maxCharges - 1 - i < dash.charges;
-      const recharging = def.dash.maxCharges - 1 - i === dash.charges;
-      this.diamond(ctx, cx, cy, 5, '#2a2f3d');
-      if (filled) this.diamond(ctx, cx, cy, 5, PALETTE.energy);
-      else if (recharging)
-        this.diamond(ctx, cx, cy, 5 * (dash.recharge / def.dash.rechargeTicks), '#3f7f8a');
-    }
-    // Shuriken cooldown.
-    const sx = x + barW - 8 - def.dash.maxCharges * 16 - 6;
-    const ready = player.rangedCooldown <= 0;
-    ctx.strokeStyle = ready ? PALETTE.shuriken : '#3a3f55';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(
-      sx,
-      y - 12,
-      5,
-      -Math.PI / 2,
-      -Math.PI / 2 + Math.PI * 2 * (1 - player.rangedCooldown / def.ranged.cooldownTicks),
-    );
-    ctx.stroke();
+
+    // Player statuses next to the class name.
+    const statuses = w.get(e, 'statuses')?.list ?? [];
+    statuses.forEach((st, i) => {
+      ctx.fillStyle = STATUSES[st.id].color;
+      ctx.fillRect(x + 100 + i * 10, y - 16, 7, 7);
+    });
+
+    // Skill slots: dash charges, shuriken, veil, ultimate.
+    const slot = 34;
+    const gap = 8;
+    const sy = y - 22 - slot - 8;
+    const sx0 = width / 2 - (slot * 4 + gap * 3) / 2;
+    const slots: {
+      key: string;
+      fill: number;
+      ready: boolean;
+      label: string;
+      color: string;
+      count?: string;
+    }[] = [
+      {
+        key: keyLabel(KEY_BINDINGS.dash[0]),
+        fill: dash.charges >= def.dash.maxCharges ? 1 : dash.recharge / def.dash.rechargeTicks,
+        ready: dash.charges > 0,
+        label: 'Dash',
+        color: PALETTE.energy,
+        count: `${dash.charges}`,
+      },
+      {
+        key: keyLabel(KEY_BINDINGS.ranged[0]),
+        fill: 1 - player.rangedCooldown / def.ranged.cooldownTicks,
+        ready: player.rangedCooldown <= 0,
+        label: 'Shuriken',
+        color: PALETTE.shuriken,
+      },
+      {
+        key: keyLabel(KEY_BINDINGS.skill[0]),
+        fill: 1 - player.skillCooldown / def.veil.cooldownTicks,
+        ready: player.skillCooldown <= 0,
+        label: 'Voile',
+        color: '#8f86b8',
+      },
+      {
+        key: keyLabel(KEY_BINDINGS.ultimate[0]),
+        fill: player.energy / def.ultimate.energyCost,
+        ready: player.energy >= def.ultimate.energyCost,
+        label: 'Exécution',
+        color: PALETTE.crit,
+      },
+    ];
+    slots.forEach((sl, i) => {
+      const sx = sx0 + i * (slot + gap);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(sx, sy, slot, slot);
+      const f = Math.max(0, Math.min(1, sl.fill));
+      ctx.fillStyle = sl.ready ? sl.color : '#3a3550';
+      ctx.globalAlpha = sl.ready ? 0.85 : 0.6;
+      ctx.fillRect(sx, sy + slot * (1 - f), slot, slot * f);
+      ctx.globalAlpha = 1;
+      if (sl.ready && i === 3) {
+        // Ultimate ready: pulsing frame.
+        ctx.strokeStyle = PALETTE.crit;
+        ctx.lineWidth = 2 + Math.sin(performance.now() / 120) * 1;
+        ctx.strokeRect(sx - 1, sy - 1, slot + 2, slot + 2);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sx + 0.5, sy + 0.5, slot - 1, slot - 1);
+      ctx.fillStyle = sl.ready ? '#0b0910' : PALETTE.hudText;
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
+      ctx.fillText(sl.key, sx + slot / 2, sy + slot / 2 - 4);
+      ctx.font = '8px ui-monospace, Menlo, monospace';
+      ctx.fillText(sl.count ?? '', sx + slot / 2, sy + slot / 2 + 9);
+      ctx.fillStyle = PALETTE.hudDim;
+      ctx.fillText(sl.label, sx + slot / 2, sy + slot + 7);
+    });
 
     // Wave / kills.
     ctx.textAlign = 'right';
@@ -105,6 +161,11 @@ export class Hud {
     ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(`Vague ${game.waves.wave}   Éliminations ${player.kills}`, width - 14, 12);
+
+    if (fx.ultFlash > 0) {
+      ctx.fillStyle = `rgba(10, 0, 20, ${fx.ultFlash})`;
+      ctx.fillRect(0, 0, width, height);
+    }
 
     if (fx.banner) {
       const t = fx.banner.life / fx.banner.maxLife;
@@ -139,22 +200,5 @@ export class Hud {
         height / 2 + 40,
       );
     }
-  }
-
-  private diamond(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    r: number,
-    color: string,
-  ): void {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x, y - r);
-    ctx.lineTo(x + r, y);
-    ctx.lineTo(x, y + r);
-    ctx.lineTo(x - r, y);
-    ctx.closePath();
-    ctx.fill();
   }
 }

@@ -47,4 +47,6 @@ docs/       DESIGN.md, ROADMAP.md
 | Son on/off                               | M                                                           |
 | Overlay debug / hitboxes / console       | F3 / F4 / `²`                                               |
 
-Commandes console : `help`, `heal`, `god`, `spawn ghoul 5`, `killall`, `dash`, `seed [valeur]`, `restart`.
+Commandes console : `help`, `heal`, `god`, `spawn <ghoul|larva|boneArcher|bloater|cryptomancer> [n]`,
+`elite <ennemi> [enraged|armored|vampiric|volatile]`, `ult`, `status <id> [ticks]`, `killall`, `dash`,
+`seed [valeur]`, `restart`.
