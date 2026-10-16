@@ -1,6 +1,7 @@
 import { CLASSES } from '../data/classes';
 import { findFreeSpot } from '../core/tilemap';
 import { TEAM } from '../data/team';
+import { DIFFICULTIES } from '../data/dungeon';
 import type { Character, Party } from '../ecs/components';
 import type { Sim } from '../game/sim';
 import { kitFor } from './kits';
@@ -144,7 +145,8 @@ export function tickParty(sim: Sim): void {
     if (i !== p.active && !m.ko) {
       m.health.hp = Math.min(
         m.health.max,
-        m.health.hp + m.health.max * TEAM.reserveRegenPerSecond * sim.dt,
+        m.health.hp +
+          m.health.max * TEAM.reserveRegenPerSecond * DIFFICULTIES[sim.difficulty].healing * sim.dt,
       );
     }
   });

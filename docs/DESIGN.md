@@ -175,6 +175,27 @@
 - **Déploiement (choix 2a)** : GitHub Actions → GitHub Pages depuis la branche par défaut ; CI sur
   toutes les branches et PR.
 
+## Après M9 : retours de jeu
+
+- **Musique inaudible** : le niveau de sortie mesuré dans le navigateur était d'environ −45 dB (pic
+  0,006) ; mix remonté (pic ≈ 0,12 au volume par défaut, sous les effets sonores).
+- **Classes publiées** : Invocateur et Berserker jouables d'emblée ; la migration de sauvegarde
+  v2 → v3 rembourse les Éclats dépensés pour les débloquer.
+- **Plus difficile** : scaling par étage relevé (PV +18 %/étage, dégâts +12 %/étage), une goule de
+  plus par salle, élites plus fréquentes, soins réduits (escalier 20 %, réserve 1 %/s). Trois
+  difficultés au choix sur l'écran d'équipe (`DIFFICULTIES` dans `data/dungeon.ts`) : Normal,
+  Difficile (×1,5 Éclats), Cauchemar (×2,5) ; le défi du jour se joue en Difficile. La difficulté
+  voyage dans la sauvegarde et l'historique.
+- **Relief 2,5D** (`render/depth.ts`) : chaque mur au contact du sol est un bloc dont le sommet
+  « penche » à l'opposé du centre de l'écran (parallaxe de perspective), ce qui révèle les faces
+  tournées vers la caméra ; dégradés sur les faces, ombre de contact au pied des murs, portes plus
+  basses. Comme les sommets penchent toujours vers l'extérieur, ils ne recouvrent jamais le sol
+  devant un mur : pas de tri avec les personnages.
+- **Éclairage dynamique** : calque d'obscurité par biome percé par les lumières (héros, torches
+  murales choisies par hachage, feux-follets, traits et orbes, brasiers, explosions, escalier,
+  butin) + halos additifs teintés. Désactivable dans les Options.
+- Un ennemi pris dans une explosion neutre n'affiche plus l'effet « joueur blessé ».
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

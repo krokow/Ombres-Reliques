@@ -36,7 +36,14 @@ export const META = {
     /** Daily runs pay a bit more (one honest attempt a day). */
     dailyMult: 1.5,
   },
-  startingClasses: ['shadowBlade', 'guardian', 'arcanist'] satisfies ClassId[],
+  /** Every class is playable from the start (the summoner and berserker were released). */
+  startingClasses: [
+    'shadowBlade',
+    'guardian',
+    'arcanist',
+    'summoner',
+    'berserker',
+  ] satisfies ClassId[],
   /** Runs kept in the history. */
   historySize: 20,
 } as const;
@@ -53,23 +60,13 @@ export type UnlockDef =
       requires?: string;
     };
 
+/** Former class unlocks, refunded by the v2 → v3 save migration. */
+export const RELEASED_CLASS_UNLOCKS: Readonly<Record<string, number>> = {
+  'class:summoner': 40,
+  'class:berserker': 40,
+};
+
 export const UNLOCKS: readonly UnlockDef[] = [
-  {
-    id: 'class:summoner',
-    kind: 'class',
-    classId: 'summoner',
-    name: 'Invocateur',
-    desc: 'Feux-follets, fouet d’âme et colosse d’os',
-    cost: 40,
-  },
-  {
-    id: 'class:berserker',
-    kind: 'class',
-    classId: 'berserker',
-    name: 'Berserker',
-    desc: 'Rage, tourbillon et frénésie',
-    cost: 40,
-  },
   {
     id: 'relics:1',
     kind: 'relics',

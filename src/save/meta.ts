@@ -11,6 +11,7 @@ import {
 } from '../data/meta';
 import { Rng, normalizeSeed } from '../core/rng';
 import type { RunStats } from '../game/runStats';
+import { DIFFICULTIES, type DifficultyId } from '../data/dungeon';
 
 /** Persistent progression across runs. Pure data + pure functions (testable, no DOM). */
 export interface MetaState {
@@ -55,6 +56,7 @@ export interface RunRecord {
   bosses: number;
   ticks: number;
   shards: number;
+  difficulty?: DifficultyId;
 }
 
 export function unlockedClasses(meta: MetaState): ClassId[] {
@@ -133,13 +135,18 @@ export interface RunEnd {
   team: ClassId[];
   stats: RunStats;
   outcome: RunRecord['outcome'];
+  difficulty?: DifficultyId;
 }
 
 /** Banks a finished run: shards, lifetime stats, history. Returns the record. */
 export function recordRun(meta: MetaState, history: RunRecord[], end: RunEnd): RunRecord {
   // Retrying the same daily is allowed, but only the first attempt pays.
   const firstDaily = end.daily && meta.lastDaily !== end.date;
-  const shards = end.daily && !firstDaily ? 0 : rewardFor(end.stats, { dailyBonus: firstDaily });
+  const mult = DIFFICULTIES[end.difficulty ?? 'normal'].rewards;
+  const shards =
+    end.daily && !firstDaily
+      ? 0
+      : Math.round(rewardFor(end.stats, { dailyBonus: firstDaily }) * mult);
   if (firstDaily) meta.lastDaily = end.date;
   meta.shards += shards;
   meta.totalShards += shards;
@@ -159,6 +166,7 @@ export function recordRun(meta: MetaState, history: RunRecord[], end: RunEnd): R
     bosses: end.stats.bosses,
     ticks: end.stats.ticks,
     shards,
+    difficulty: end.difficulty ?? 'normal',
   };
   history.unshift(record);
   history.length = Math.min(history.length, META.historySize);

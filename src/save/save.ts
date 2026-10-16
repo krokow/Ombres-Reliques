@@ -1,5 +1,6 @@
 import { isClassId } from '../data/classes';
-import { unlockById, upgradeById } from '../data/meta';
+import { RELEASED_CLASS_UNLOCKS, unlockById, upgradeById } from '../data/meta';
+import { isDifficultyId, type DifficultyId } from '../data/dungeon';
 import { isValidSnapshot, type RunSnapshot } from '../game/snapshot';
 import { newMeta, type MetaState, type RunRecord } from './meta';
 
@@ -9,7 +10,7 @@ import { newMeta, type MetaState, type RunRecord } from './meta';
  * step by step instead of being thrown away.
  */
 export const SAVE_KEY = 'ombres-reliques.save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: typeof SAVE_VERSION;
@@ -31,6 +32,10 @@ export interface Settings {
   hints: boolean;
   hintsSeen: string[];
   tutorialDone: boolean;
+  /** Dynamic lighting layer (off = flatter but cheaper). */
+  lighting: boolean;
+  /** Last difficulty picked on the team screen. */
+  difficulty: DifficultyId;
 }
 
 export function defaultSettings(): Settings {
@@ -42,6 +47,8 @@ export function defaultSettings(): Settings {
     hints: true,
     hintsSeen: [],
     tutorialDone: false,
+    difficulty: 'normal',
+    lighting: true,
   };
 }
 
@@ -76,7 +83,8 @@ type Raw = Record<string, unknown>;
 /**
  * Migrations, keyed by the version they upgrade FROM.
  * v1: meta only ({ shards, unlocked, upgrades }); v2 adds the resumable
- * run, the history, lifetime stats and settings.
+ * run, the history, lifetime stats and settings; v3 releases the summoner
+ * and berserker to everyone and refunds the shards spent unlocking them.
  */
 const MIGRATIONS: Record<number, (old: Raw) => Raw> = {
   1: (old) => ({
@@ -92,6 +100,26 @@ const MIGRATIONS: Record<number, (old: Raw) => Raw> = {
     history: [],
     settings: defaultSettings(),
   }),
+  2: (old) => {
+    const meta = (typeof old.meta === 'object' && old.meta !== null ? old.meta : {}) as Raw;
+    const unlocked = Array.isArray(meta.unlocked) ? (meta.unlocked as unknown[]) : [];
+    const refund = unlocked.reduce<number>(
+      (sum, id) => sum + (typeof id === 'string' ? (RELEASED_CLASS_UNLOCKS[id] ?? 0) : 0),
+      0,
+    );
+    const shards = typeof meta.shards === 'number' ? meta.shards : 0;
+    return {
+      ...old,
+      version: 3,
+      meta: {
+        ...meta,
+        shards: shards + refund,
+        unlocked: unlocked.filter(
+          (id) => typeof id !== 'string' || !(id in RELEASED_CLASS_UNLOCKS),
+        ),
+      },
+    };
+  },
 };
 
 const num = (v: unknown, fallback = 0): number =>
@@ -160,6 +188,8 @@ function sanitizeSettings(raw: unknown): Settings {
       ? r.hintsSeen.filter((h): h is string => typeof h === 'string')
       : [],
     tutorialDone: bool(r.tutorialDone, d.tutorialDone),
+    difficulty: isDifficultyId(r.difficulty) ? r.difficulty : d.difficulty,
+    lighting: bool(r.lighting, d.lighting),
   };
 }
 

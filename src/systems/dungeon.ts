@@ -2,7 +2,7 @@ import { clamp } from '../core/math';
 import type { Rng } from '../core/rng';
 import { Tile } from '../core/tilemap';
 import { BIOMES, floorInBiome, FLOORS_PER_BIOME, RUN_FLOORS } from '../data/biomes';
-import { DUNGEON } from '../data/dungeon';
+import { DIFFICULTIES, DUNGEON, type DifficultyDef, type DifficultyId } from '../data/dungeon';
 import type { EliteModifierId } from '../data/elites';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
@@ -74,8 +74,14 @@ export function roomArea(floor: Floor, room: number): number {
  * mini-boss / boss rooms hold a champion pack on a biome's first floors and
  * the biome's true mini-boss / boss on its last floor (choice 1b).
  */
-export function rollEncounter(rng: Rng, floor: Floor, room: Room): EncounterSpawn[] {
+export function rollEncounter(
+  rng: Rng,
+  floor: Floor,
+  room: Room,
+  difficulty: DifficultyId = 'normal',
+): EncounterSpawn[] {
   const enc = DUNGEON.encounter;
+  const diff: DifficultyDef = DIFFICULTIES[difficulty];
   const biome = BIOMES[floor.biome];
   const inBiome = floorInBiome(floor.level);
   const pool = biome.roster
@@ -104,15 +110,18 @@ export function rollEncounter(rng: Rng, floor: Floor, room: Room): EncounterSpaw
   }
   if (room.type !== 'combat') return [];
   const count = Math.min(
-    enc.max,
-    enc.baseEnemies +
-      Math.floor(roomArea(floor, room.id) / enc.tilesPerEnemy) +
-      Math.floor((enc.perFloor * (floor.level - 1)) / 2),
+    Math.round(enc.max * diff.enemyCount),
+    Math.round(
+      (enc.baseEnemies +
+        Math.floor(roomArea(floor, room.id) / enc.tilesPerEnemy) +
+        Math.floor((enc.perFloor * (floor.level - 1)) / 2)) *
+        diff.enemyCount,
+    ),
   );
   const eliteChance = clamp(
-    enc.eliteChance.base + enc.eliteChance.perFloor * (floor.level - 1),
+    enc.eliteChance.base + enc.eliteChance.perFloor * (floor.level - 1) + diff.eliteChanceBonus,
     0,
-    enc.eliteChance.max,
+    enc.eliteChance.max + diff.eliteChanceBonus,
   );
   return Array.from({ length: count }, () => ({
     id: rng.weighted(pool),
@@ -209,7 +218,7 @@ function startEncounter(sim: Sim, d: DungeonState, room: Room, level: number): v
   }
   if (spots.length === 0) spots.push(map.tileCenter(room.center.tx, room.center.ty));
   sim.rng.spawn.shuffle(spots);
-  const list = rollEncounter(sim.rng.spawn, d.floor, room);
+  const list = rollEncounter(sim.rng.spawn, d.floor, room, sim.difficulty);
   list.forEach((spec, i) => {
     const spot = spots[i % spots.length];
     if (!spot) return;

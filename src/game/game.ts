@@ -4,7 +4,7 @@ import { TEST_ARENA } from '../data/arenas';
 import { biomeForFloor, type BiomeId } from '../data/biomes';
 import { CLASSES } from '../data/classes';
 import { ENGINE } from '../data/config';
-import { DESCEND_HEAL } from '../data/dungeon';
+import { DESCEND_HEAL, DIFFICULTIES, type DifficultyId } from '../data/dungeon';
 import { TEAM } from '../data/team';
 import { RELICS, type RelicId } from '../data/items';
 import { NO_BONUSES, type RunBonuses } from '../data/meta';
@@ -63,6 +63,7 @@ export interface GameOptions {
   restore?: RunSnapshot;
   /** Guided training room (arena, scripted steps, no death). */
   tutorial?: boolean;
+  difficulty?: DifficultyId;
 }
 
 /**
@@ -91,6 +92,7 @@ export class Game implements Sim {
   hitstopTicks = 0;
   godMode = false;
   readonly daily: boolean;
+  readonly difficulty: DifficultyId;
   readonly immortal: boolean;
   readonly tutorial: TutorialState | null;
   stats: RunStats;
@@ -118,6 +120,7 @@ export class Game implements Sim {
     const restore = options.restore;
     this.level = restore?.level ?? options.startLevel ?? 1;
     this.daily = restore?.daily ?? options.daily ?? false;
+    this.difficulty = restore?.difficulty ?? options.difficulty ?? 'normal';
     this.stats = restore ? structuredClone(restore.stats) : emptyStats(this.level);
     const classIds = restore?.members.map((m) => m.classId) ?? options.party ?? TEAM.defaultParty;
     this.player = spawnPlayer(this, classIds, 0, 0);
@@ -212,7 +215,8 @@ export class Game implements Sim {
   descend(): void {
     this.level++;
     for (const m of this.world.req(this.player, 'party').members) {
-      if (!m.ko) m.health.hp = Math.min(m.health.max, m.health.hp + m.health.max * DESCEND_HEAL);
+      const heal = DESCEND_HEAL * DIFFICULTIES[this.difficulty].healing;
+      if (!m.ko) m.health.hp = Math.min(m.health.max, m.health.hp + m.health.max * heal);
     }
     const party = this.world.req(this.player, 'party');
     reviveAll(this, TEAM.descendReviveFraction + party.bonuses.reviveBonus);
@@ -287,6 +291,7 @@ export class Game implements Sim {
       seed: this.seed,
       level: this.level,
       daily: this.daily,
+      difficulty: this.difficulty,
       ...snapshotParty(this.world.req(this.player, 'party')),
       rng: {
         combat: r.combat.getState(),

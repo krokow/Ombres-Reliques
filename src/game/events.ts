@@ -41,6 +41,8 @@ export type GameEvent =
       absorbed: number;
       /** The target is a summon (not the player). */
       ally: boolean;
+      /** The target is the player (hurt feedback only then). */
+      toPlayer: boolean;
       /** Dealt by a summon (lighter feedback). */
       fromAlly: boolean;
     }

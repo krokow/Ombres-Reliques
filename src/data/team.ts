@@ -12,7 +12,7 @@ export const TEAM = {
   switchInvulnTicks: 20,
   koSwitchInvulnTicks: 75,
   /** Reserve characters regenerate this fraction of max HP per second. */
-  reserveRegenPerSecond: 0.02,
+  reserveRegenPerSecond: 0.01,
   /** KO'd characters come back on the next floor with this fraction of max HP. */
   descendReviveFraction: 0.3,
   /** Altar (first function, extended in M6): sacrifice HP of the active character to revive. */

@@ -853,3 +853,26 @@ kbd {
 .mn-row-buttons button {
   flex: 1;
 }
+
+.mn-difficulty {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mn-card .mn-difficulty button {
+  text-align: left;
+  font-size: 13px;
+}
+
+.mn-card .mn-difficulty button.picked {
+  border-color: rgb(255 90 61 / 70%);
+  background: rgb(255 90 61 / 12%);
+}
+
+@media (width <= 640px) {
+  .mn-difficulty {
+    grid-template-columns: 1fr;
+  }
+}

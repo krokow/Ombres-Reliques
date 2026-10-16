@@ -110,6 +110,7 @@ const menus: Menus = new Menus(uiRoot, {
       party: picked,
       bonuses: runBonuses(saves.data.meta),
       relicPool: relicPool(saves.data.meta),
+      difficulty: saves.data.settings.difficulty,
     });
   },
   startDaily: () => {
@@ -117,7 +118,14 @@ const menus: Menus = new Menus(uiRoot, {
     const d = dailyChallenge(today());
     team = d.team;
     // Fair for everyone: no permanent upgrades, every relic can drop.
-    launch(d.seed, { party: d.team, daily: true, bonuses: NO_BONUSES, relicPool: allRelics() });
+    // The daily challenge is always played in "Difficile".
+    launch(d.seed, {
+      party: d.team,
+      daily: true,
+      bonuses: NO_BONUSES,
+      relicPool: allRelics(),
+      difficulty: 'hard',
+    });
   },
   buy: (p) => {
     if (buy(saves.data.meta, p)) saves.write();
@@ -135,6 +143,7 @@ const menus: Menus = new Menus(uiRoot, {
       party: allowed,
       bonuses: runBonuses(saves.data.meta),
       relicPool: relicPool(saves.data.meta),
+      difficulty: saves.data.settings.difficulty,
     });
   },
   wipeSave: () => {
@@ -200,6 +209,7 @@ function abandonSaved(): void {
     team: snap.members.map((m) => m.classId),
     stats: snap.stats,
     outcome: 'abandon',
+    difficulty: snap.difficulty ?? 'normal',
   });
   saves.data.run = null;
   saves.write();
@@ -216,6 +226,7 @@ function endRun(outcome: RunRecord['outcome']): void {
     team: g.world.req(g.player, 'party').members.map((m) => m.classId),
     stats: g.stats,
     outcome,
+    difficulty: g.difficulty,
   });
   saves.data.run = null;
   saves.write();
@@ -244,6 +255,7 @@ function newGame(seed: string, mode: 'dungeon' | 'arena' = 'dungeon', startLevel
       startLevel,
       bonuses: runBonuses(saves.data.meta),
       relicPool: relicPool(saves.data.meta),
+      difficulty: game?.difficulty ?? saves.data.settings.difficulty,
     },
     mode,
   );
@@ -526,7 +538,10 @@ runLoop(clock, {
     fx.update(fdt);
     anim.update(g, fdt);
     camera.follow({ x: px, y: py }, camera.screenToWorld(input.mouseX, input.mouseY), fdt);
-    renderer.render(g, camera, fx, anim, alpha, fdt, { showHitboxes: debug.showHitboxes });
+    renderer.render(g, camera, fx, anim, alpha, fdt, {
+      showHitboxes: debug.showHitboxes,
+      lighting: saves.data.settings.lighting,
+    });
     renderer.screenSpace();
     hud.draw(renderer.ctx, renderer.width, renderer.height, g, fx, fdt);
     progressPanel.update(g);

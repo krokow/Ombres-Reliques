@@ -72,7 +72,7 @@ export const MUSIC: Record<BiomeId | 'title', MusicTheme> = {
 
 export const MUSIC_MIX = {
   /** Overall music level before the player's volume setting. */
-  level: 0.07,
+  level: 1.8,
   /** Soft low pulse added during sealed-room fights (0..1 intensity). */
   combatPulse: 0.5,
   /** Seconds to cross-fade between themes. */

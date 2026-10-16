@@ -131,7 +131,7 @@ export function spawnEnemy(
   const mods = opts.elite ?? [];
   const isElite = mods.length > 0;
   const level = opts.level ?? 1;
-  const diff = difficultyFor(level);
+  const diff = difficultyFor(level, sim.difficulty);
   let hp = def.maxHp * (isElite ? ELITE.hpMult : 1) * diff.hpMult;
   let weight = def.weight;
   let speedMult = 1;

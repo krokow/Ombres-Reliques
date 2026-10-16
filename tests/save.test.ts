@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RUN_FLOORS } from '../src/data/biomes';
 import { UNLOCKS } from '../src/data/meta';
+import { CLASS_IDS } from '../src/data/classes';
 import { Game } from '../src/game/game';
 import { emptyStats } from '../src/game/runStats';
 import { SNAPSHOT_FORMAT } from '../src/game/snapshot';
@@ -21,15 +22,9 @@ import { addXp, recomputeAll } from '../src/systems/progression';
 import { DT, run } from './helpers';
 
 describe('Méta', () => {
-  it('starts with the three base classes; buying unlocks the others', () => {
-    const meta = newMeta();
-    expect(unlockedClasses(meta)).toEqual(['shadowBlade', 'guardian', 'arcanist']);
-    expect(buy(meta, { kind: 'unlock', id: 'class:summoner' })).toBe(false);
-    meta.shards = 100;
-    expect(buy(meta, { kind: 'unlock', id: 'class:summoner' })).toBe(true);
-    expect(meta.shards).toBe(60);
-    expect(unlockedClasses(meta)).toContain('summoner');
-    expect(priceOf(meta, { kind: 'unlock', id: 'class:summoner' })).toBeNull();
+  it('all five classes are playable from the start', () => {
+    expect(unlockedClasses(newMeta())).toEqual(CLASS_IDS);
+    expect(priceOf(newMeta(), { kind: 'unlock', id: 'class:summoner' })).toBeNull();
   });
 
   it('relic packs gate relics and must be bought in order', () => {
@@ -111,10 +106,23 @@ describe('Sauvegarde', () => {
     });
     expect(migratedFrom).toBe(1);
     expect(save.version).toBe(SAVE_VERSION);
-    expect(save.meta.shards).toBe(30);
-    expect(save.meta.unlocked).toEqual(['class:berserker']);
+    // v1 → v2 → v3: the berserker unlock is refunded on the way.
+    expect(save.meta.shards).toBe(70);
+    expect(save.meta.unlocked).toEqual([]);
     expect(save.meta.upgrades).toEqual({ purse: 2 });
     expect(save.run).toBeNull();
+  });
+
+  it('v2 → v3 refunds the released class unlocks and keeps the rest', () => {
+    const { save, migratedFrom } = migrate({
+      version: 2,
+      meta: { shards: 5, unlocked: ['class:summoner', 'class:berserker', 'relics:1'] },
+      run: null,
+      history: [],
+    });
+    expect(migratedFrom).toBe(2);
+    expect(save.meta.shards).toBe(85);
+    expect(save.meta.unlocked).toEqual(['relics:1']);
   });
 
   it('keeps a corrupt save aside and starts fresh', () => {

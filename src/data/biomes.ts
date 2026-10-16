@@ -19,6 +19,8 @@ export interface BiomeDef {
     wallFace: string;
     wallEdge: string;
   };
+  /** Darkness of unlit areas (0..1) and the warm tint torches add. */
+  light: { darkness: number; torch: string };
   /** Ambient particles drifting over the floor (render only). */
   ambient: {
     color: string;
@@ -62,6 +64,7 @@ export const BIOMES = {
       wallFace: '#231e31',
       wallEdge: '#4d4469',
     },
+    light: { darkness: 0.52, torch: '255, 170, 90' },
     ambient: { color: '#9c94b8', count: 40, size: 1.5, rise: 4, drift: 6, glow: false },
     dressing: {
       erosionWalks: 0,
@@ -92,6 +95,7 @@ export const BIOMES = {
       wallFace: '#1a2a1f',
       wallEdge: '#4a6b4f',
     },
+    light: { darkness: 0.42, torch: '190, 255, 140' },
     ambient: { color: '#a6e06a', count: 55, size: 2, rise: 9, drift: 14, glow: true },
     dressing: {
       erosionWalks: 4,
@@ -123,6 +127,7 @@ export const BIOMES = {
       wallFace: '#2b1916',
       wallEdge: '#a8452a',
     },
+    light: { darkness: 0.38, torch: '255, 120, 50' },
     ambient: { color: '#ffb347', count: 70, size: 1.8, rise: 30, drift: 10, glow: true },
     dressing: {
       erosionWalks: 2,

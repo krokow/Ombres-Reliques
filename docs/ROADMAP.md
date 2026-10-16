@@ -226,3 +226,11 @@
   les piliers ; Gardien rehaussé.
 - **CI + déploiement GitHub Pages** (choix 2a).
 - 229 tests.
+
+## Après M9 – retours de jeu
+
+- Jamais coincé dans un mur (filet de sécurité, foule qui cède), overlay debug masqué par défaut.
+- Musique réécrite et audible ; Invocateur et Berserker publiés (remboursement des Éclats).
+- Difficulté relevée + 3 niveaux (Normal, Difficile, Cauchemar).
+- Relief 2,5D des murs et éclairage dynamique (torches, sorts, feux).
+- 237 tests.

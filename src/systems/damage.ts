@@ -197,6 +197,7 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
     dot: spec.dot,
     absorbed,
     ally: w.has(target, 'ally'),
+    toPlayer: targetIsPlayer,
     fromAlly,
   });
 

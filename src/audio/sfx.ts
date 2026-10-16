@@ -107,6 +107,7 @@ export class Sfx {
       case 'hit':
         if (ev.dot || ev.ally) return this.play('tick');
         if (ev.fromAlly) return this.play('throw');
+        if (!ev.byPlayer && !ev.toPlayer) return this.play('hit');
         return this.play(ev.byPlayer ? (ev.crit ? 'crit' : 'hit') : 'hurt');
       case 'veil':
         return this.play('veil');

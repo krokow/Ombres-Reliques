@@ -139,6 +139,22 @@ export class Effects {
           this.burst(ev.x, ev.y, 5, '#5cffc4', 120, 0.3, Math.atan2(ev.dirY, ev.dirX), 1.2);
           break;
         }
+        if (!ev.byPlayer && !ev.toPlayer) {
+          // Enemy caught in a neutral blast: enemy feedback, not "you got hurt".
+          this.flashes.set(ev.target, 0.08);
+          this.burst(
+            ev.x,
+            ev.y,
+            6,
+            PALETTE.ghoulBlood,
+            160,
+            0.35,
+            Math.atan2(ev.dirY, ev.dirX),
+            1.2,
+          );
+          this.text(ev.x, ev.y - 14, `${ev.damage}`, PALETTE.damage, 10);
+          break;
+        }
         if (ev.fromAlly) {
           this.flashes.set(ev.target, 0.06);
           this.burst(ev.x, ev.y, 4, '#5cffc4', 160, 0.25, Math.atan2(ev.dirY, ev.dirX), 0.9, true);

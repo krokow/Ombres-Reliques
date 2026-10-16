@@ -1,6 +1,7 @@
 import { isClassId, type ClassId } from '../data/classes';
 import { CONSUMABLES, RELICS, type RelicId } from '../data/items';
 import type { RunBonuses } from '../data/meta';
+import { isDifficultyId, type DifficultyId } from '../data/dungeon';
 import type { Equipment, Party, Progress, QuickSlot } from '../ecs/components';
 import type { RunStats } from './runStats';
 
@@ -15,6 +16,8 @@ export interface RunSnapshot {
   seed: string;
   level: number;
   daily: boolean;
+  /** Older snapshots (before difficulties) read as 'normal'. */
+  difficulty?: DifficultyId;
   members: MemberSnapshot[];
   active: number;
   gold: number;
@@ -84,6 +87,7 @@ export function isValidSnapshot(raw: unknown): raw is RunSnapshot {
   if (typeof raw !== 'object' || raw === null) return false;
   const s = raw as Partial<RunSnapshot>;
   if (s.format !== SNAPSHOT_FORMAT || typeof s.seed !== 'string' || !isNum(s.level)) return false;
+  if (s.difficulty !== undefined && !isDifficultyId(s.difficulty)) return false;
   if (!Array.isArray(s.members) || s.members.length === 0 || s.members.length > 3) return false;
   if (
     !s.members.every((m) => isClassId(m.classId) && isNum(m.hp) && typeof m.progress === 'object')

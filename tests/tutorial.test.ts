@@ -31,6 +31,7 @@ function goalEvent(game: Game): GameEvent {
       dot: false,
       absorbed: 0,
       ally: false,
+      toPlayer: false,
       fromAlly: false,
     };
   if (g.kind === 'event') return { type: g.events[0]!, x: 0, y: 0 } as GameEvent;

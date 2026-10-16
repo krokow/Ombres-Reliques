@@ -2,6 +2,7 @@ import { lerp } from '../core/math';
 import { Tile, type TileMap } from '../core/tilemap';
 import { hashString } from '../core/rng';
 import { BIOMES, type BiomeDef } from '../data/biomes';
+import { LIGHTS } from '../data/config';
 import { ARCANIST, BERSERKER, CLASSES, GUARDIAN, SHADOW_BLADE, SUMMONER } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef, type BossPattern } from '../data/enemies';
@@ -18,6 +19,7 @@ import type { Camera } from './camera';
 import type { Effects } from './effects';
 import { PALETTE } from './palette';
 import { applyAnim, type Animator } from './anim';
+import { drawWalls3D, Lighting, type LightSource } from './depth';
 import {
   drawBeast,
   drawBossCrown,
@@ -49,6 +51,8 @@ import {
 
 export interface RenderOptions {
   showHitboxes: boolean;
+  /** Dynamic lighting layer (can be turned off in the options). */
+  lighting: boolean;
 }
 
 type BiomePalette = BiomeDef['palette'];
@@ -115,6 +119,7 @@ export class Renderer {
   private mapCache: { map: TileMap; palette: BiomePalette; canvas: HTMLCanvasElement } | null =
     null;
   private time = 0;
+  private readonly lighting = new Lighting();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -161,6 +166,20 @@ export class Renderer {
 
     ctx.drawImage(this.mapCanvas(game.map, pal), 0, 0);
     this.drawDynamicTiles(game, pal);
+    const view = {
+      cx: camera.x,
+      cy: camera.y,
+      halfW: this.width / 2 / camera.zoom + 48,
+      halfH: this.height / 2 / camera.zoom + 48,
+    };
+    const torches = drawWalls3D(
+      ctx,
+      game.map,
+      pal,
+      view,
+      game.dungeon?.floor.explored ?? null,
+      this.time,
+    );
     this.drawLoot(game, alpha);
     for (const [, z, t] of w.query('zone', 'transform')) {
       if (z.kind === 'fire') drawFire(ctx, t.x, t.y, z.radius, z.ticks / z.maxTicks, this.time);
@@ -222,6 +241,18 @@ export class Renderer {
     this.drawSlashes(game, fx, alpha);
     fx.drawParticles(ctx);
     this.drawAmbient(game, camera);
+    if (opts.lighting) {
+      const darkness = game.dungeon ? BIOMES[game.biome].light.darkness : LIGHTS.arenaDarkness;
+      this.lighting.draw(
+        ctx,
+        this.width,
+        this.height,
+        this.dpr,
+        (c) => this.worldTransform(c, camera),
+        darkness,
+        this.collectLights(game, fx, alpha, torches),
+      );
+    }
     this.drawFog(game, camera, pal);
     this.drawEnemyBars(game, alpha);
     if (opts.showHitboxes) this.drawHitboxes(game);
@@ -337,6 +368,95 @@ export class Renderer {
       if (hasStatus(w, e, 'stun')) this.drawStunStars(radius);
     }
     ctx.restore();
+  }
+
+  /** Same world transform as the main pass, for the lighting layer. */
+  private worldTransform(c: CanvasRenderingContext2D, camera: Camera): void {
+    c.translate(this.width / 2, this.height / 2);
+    c.rotate(camera.shakeAngle);
+    c.scale(camera.zoom, camera.zoom);
+    c.translate(-camera.x + camera.shakeX, -camera.y + camera.shakeY);
+  }
+
+  /** Everything that shines this frame. */
+  private collectLights(
+    game: Game,
+    fx: Effects,
+    alpha: number,
+    torches: LightSource[],
+  ): LightSource[] {
+    const w = game.world;
+    const tint = BIOMES[game.biome].light.torch;
+    const out: LightSource[] = [];
+    const pt = interp(w.req(game.player, 'transform'), alpha);
+    out.push({ x: pt.x, y: pt.y, ...LIGHTS.player, glow: null });
+    for (const t of torches) {
+      const flicker = 0.9 + Math.sin(this.time * 9 + t.x * 0.1) * 0.06;
+      out.push({
+        x: t.x,
+        y: t.y,
+        radius: LIGHTS.torch.radius * flicker,
+        intensity: LIGHTS.torch.intensity,
+        glow: tint,
+      });
+    }
+    for (const [, a, t] of w.query('ally', 'transform')) {
+      const p = interp(t, alpha);
+      const big = a.kind === 'colossus';
+      out.push({
+        x: p.x,
+        y: p.y,
+        radius: LIGHTS.wisp.radius * (big ? 1.6 : 1),
+        intensity: LIGHTS.wisp.intensity,
+        glow: '92, 255, 196',
+      });
+    }
+    for (const [e, , t] of w.query('projectile', 'transform')) {
+      const kind = w.get(e, 'renderable')?.kind;
+      if (kind !== 'arcaneBolt' && kind !== 'frostOrb') continue;
+      const p = interp(t, alpha);
+      out.push({
+        x: p.x,
+        y: p.y,
+        ...LIGHTS.bolt,
+        glow: kind === 'frostOrb' ? '170, 230, 255' : '120, 200, 255',
+      });
+    }
+    for (const [, z, t] of w.query('zone', 'transform')) {
+      if (z.kind !== 'fire') continue;
+      out.push({
+        x: t.x,
+        y: t.y,
+        radius: z.radius * LIGHTS.fire.radiusMult,
+        intensity: LIGHTS.fire.intensity * Math.min(1, (z.ticks / z.maxTicks) * 3),
+        glow: '255, 140, 60',
+      });
+    }
+    for (const r of fx.rings) {
+      const k = r.life / r.maxLife;
+      if (k <= 0) continue;
+      out.push({
+        x: r.x,
+        y: r.y,
+        radius: r.radius * LIGHTS.explosionRadiusMult,
+        intensity: k,
+        glow: null,
+      });
+    }
+    const st = game.dungeon?.stairs;
+    if (st) {
+      const c = game.map.tileCenter(st.tx, st.ty);
+      out.push({ x: c.x, y: c.y, ...LIGHTS.stairs, glow: '155, 123, 255' });
+    }
+    for (const [, it, t] of w.query('interactable', 'transform')) {
+      if (it.kind === 'chest' && it.opened) continue;
+      out.push({ x: t.x, y: t.y, ...LIGHTS.loot, glow: null });
+    }
+    for (const [, pk, t] of w.query('pickup', 'transform')) {
+      if (pk.kind !== 'item' && pk.kind !== 'relic') continue;
+      out.push({ x: t.x, y: t.y, ...LIGHTS.loot, glow: null });
+    }
+    return out;
   }
 
   /**
@@ -841,6 +961,24 @@ export class Renderer {
         if (!wallAt(tx, ty)) {
           ctx.fillStyle = (tx + ty) % 2 === 0 ? pal.floorA : pal.floorB;
           ctx.fillRect(x, y, s, s);
+          // Contact shadow at the foot of walls: sells their height.
+          const ao = 11;
+          const shadow = (x0: number, y0: number, x1: number, y1: number): void => {
+            const g = ctx.createLinearGradient(x0, y0, x1, y1);
+            g.addColorStop(0, 'rgba(0,0,0,0.5)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(
+              Math.min(x0, x1),
+              Math.min(y0, y1),
+              Math.abs(x1 - x0) || s,
+              Math.abs(y1 - y0) || s,
+            );
+          };
+          if (wallAt(tx, ty - 1)) shadow(x, y, x, y + ao);
+          if (wallAt(tx, ty + 1)) shadow(x, y + s, x, y + s - ao);
+          if (wallAt(tx - 1, ty)) shadow(x, y, x + ao, y);
+          if (wallAt(tx + 1, ty)) shadow(x + s, y, x + s - ao, y);
           if (h % 7 === 0) {
             ctx.strokeStyle = pal.floorDetail;
             ctx.lineWidth = 1;
@@ -861,15 +999,9 @@ export class Renderer {
           ctx.fillRect(x, y, s, s);
           continue;
         }
+        // Wall footprint: the 3D block itself is drawn every frame (render/depth.ts).
         ctx.fillStyle = pal.wallFace;
         ctx.fillRect(x, y, s, s);
-        ctx.fillStyle = pal.wallTop;
-        ctx.fillRect(x, y, s, s - 8);
-        // Light edge where a wall borders floor, for readability.
-        ctx.fillStyle = pal.wallEdge;
-        if (!wallAt(tx, ty - 1)) ctx.fillRect(x, y, s, 2);
-        if (!wallAt(tx - 1, ty)) ctx.fillRect(x, y, 2, s - 8);
-        if (!wallAt(tx + 1, ty)) ctx.fillRect(x + s - 2, y, 2, s - 8);
       }
     }
     this.mapCache = { map, palette: pal, canvas };
@@ -888,11 +1020,9 @@ export class Renderer {
         const x = door.tx * s;
         const y = door.ty * s;
         if (map.get(door.tx, door.ty) === Tile.DoorClosed) {
+          // Drawn as a short 3D block by drawWalls3D.
           ctx.fillStyle = '#2a1f1a';
           ctx.fillRect(x, y, s, s);
-          ctx.fillStyle = '#9a8f88';
-          for (let i = 0; i < 4; i++) ctx.fillRect(x + 3 + i * 8, y + 2, 3, s - 4);
-          ctx.fillRect(x + 1, y + s / 2 - 2, s - 2, 3);
         } else {
           ctx.fillStyle = pal.wallEdge;
           ctx.globalAlpha = 0.35;
@@ -900,21 +1030,6 @@ export class Renderer {
           ctx.globalAlpha = 1;
         }
       }
-    }
-    for (const c of d.floor.cracked) {
-      if (map.get(c.tx, c.ty) !== Tile.Cracked) continue;
-      const x = c.tx * s;
-      const y = c.ty * s;
-      ctx.strokeStyle = '#0b0910';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(x + 6, y + 4);
-      ctx.lineTo(x + 14, y + 12);
-      ctx.lineTo(x + 10, y + 20);
-      ctx.lineTo(x + 20, y + 26);
-      ctx.moveTo(x + 14, y + 12);
-      ctx.lineTo(x + 24, y + 9);
-      ctx.stroke();
     }
     if (d.stairs) {
       const x = d.stairs.tx * s;

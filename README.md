@@ -15,8 +15,8 @@ moteur maison (ECS + boucle à pas fixe), zéro asset externe.
 | `npm run format`  | formatage Prettier                                           |
 | `npm run balance` | sonde d'équilibrage (temps pour tuer chaque boss par classe) |
 
-Le jeu s'ouvre sur l'écran titre : continuer la run sauvegardée, nouvelle run (choix de l'équipe et
-du seed), défi du jour, Sanctuaire (méta), historique, commandes. `?seed=XXXX` dans l'URL lance
+Le jeu s'ouvre sur l'écran titre : continuer la run sauvegardée, nouvelle run (choix de l'équipe, du
+seed et de la difficulté), défi du jour, Sanctuaire (méta), historique, commandes. `?seed=XXXX` dans l'URL lance
 directement une run sur ce seed.
 
 ## Déploiement

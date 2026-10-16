@@ -5,6 +5,7 @@ import type { Entity } from '../ecs/world';
 import type { FlowField } from '../systems/navigation';
 import type { DungeonState } from '../systems/dungeon';
 import type { GameEvent } from './events';
+import type { DifficultyId } from '../data/dungeon';
 
 /** What systems get to see of the game. Keeps systems decoupled from the Game class. */
 export interface Sim {
@@ -30,6 +31,7 @@ export interface Sim {
   /** Freezes the simulation for `ticks` (keeps the longest request). */
   hitstop(ticks: number): void;
   godMode: boolean;
+  readonly difficulty: DifficultyId;
   /** The party can't drop below 1 HP (training room). */
   readonly immortal: boolean;
 }

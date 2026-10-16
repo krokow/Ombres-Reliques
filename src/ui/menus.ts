@@ -1,6 +1,12 @@
 import { CLASS_IDS, CLASSES, type ClassId } from '../data/classes';
 import { KEY_BINDINGS, type Action } from '../data/controls';
 import { RUN_FLOORS } from '../data/biomes';
+import {
+  DIFFICULTIES,
+  isDifficultyId,
+  type DifficultyDef,
+  type DifficultyId,
+} from '../data/dungeon';
 import { META, UNLOCKS, UPGRADES } from '../data/meta';
 import type { RunStats } from '../game/runStats';
 import type { RunSnapshot } from '../game/snapshot';
@@ -98,7 +104,8 @@ export class Menus {
       const opt = t.dataset.option as keyof Settings | undefined;
       if (opt === 'sfxVolume' || opt === 'musicVolume')
         this.host.setSetting(opt, Number(t.value) / 100);
-      else if (opt === 'shake' || opt === 'hints') this.host.setSetting(opt, t.checked);
+      else if (opt === 'shake' || opt === 'hints' || opt === 'lighting')
+        this.host.setSetting(opt, t.checked);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
   }
@@ -217,6 +224,9 @@ export class Menus {
         return this.host.finishVictory();
       case 'again':
         return this.host.newRunSameTeam(arg === 'seed');
+      case 'difficulty':
+        if (isDifficultyId(arg)) this.host.setSetting('difficulty', arg);
+        return this.render();
       case 'tutorial':
         return this.host.startTutorial();
       case 'resetHints':
@@ -283,7 +293,7 @@ export class Menus {
             : `<button data-action="tutorial" class="${run ? '' : 'mn-primary'}">Entraînement<small>recommandé pour une première partie · 3 minutes</small></button>`
         }
         <button data-action="new" class="${run || !save.settings.tutorialDone ? '' : 'mn-primary'}">Nouvelle run${run ? '<small>remplace la run en cours</small>' : ''}</button>
-        <button data-action="daily">Défi du jour<small>${today} · ${esc(teamLabel(daily.team))}${dailyDone ? ' · déjà récompensé' : ` · récompense ×${META.rewards.dailyMult}`}</small></button>
+        <button data-action="daily">Défi du jour<small>${today} · Difficile · ${esc(teamLabel(daily.team))}${dailyDone ? ' · déjà récompensé' : ` · récompense ×${META.rewards.dailyMult}`}</small></button>
         <button data-action="screen" data-arg="sanctuary">Sanctuaire<small>déblocages et améliorations</small></button>
         <button data-action="screen" data-arg="history">Historique</button>
         <div class="mn-row-buttons">
@@ -322,6 +332,13 @@ export class Menus {
         <label>Seed <input data-field="seed" value="${esc(this.seed)}" placeholder="aléatoire" maxlength="24" spellcheck="false" /></label>
         <span class="mn-team">${this.picked.length ? esc(teamLabel(this.picked)) : '—'}</span>
       </div>
+      <div class="mn-difficulty">${(Object.keys(DIFFICULTIES) as DifficultyId[])
+        .map((id) => {
+          const d: DifficultyDef = DIFFICULTIES[id];
+          const on = this.host.save().settings.difficulty === id;
+          return `<button data-action="difficulty" data-arg="${id}" class="${on ? 'picked' : ''}"><strong>${d.name}</strong><small>${esc(d.desc)}</small></button>`;
+        })
+        .join('')}</div>
       <div class="mn-buttons mn-inline">
         <button data-action="screen" data-arg="title">Retour</button>
         <button data-action="launch" class="mn-primary" ${ready ? '' : 'disabled'}>Lancer la run</button>
@@ -378,7 +395,7 @@ export class Menus {
     const rows = history
       .map(
         (r) => `<tr>
-          <td>${esc(r.date)}${r.daily ? ' <em>jour</em>' : ''}</td>
+          <td>${esc(r.date)}${r.daily ? ' <em>jour</em>' : ''}${r.difficulty && r.difficulty !== 'normal' ? ` <em>${DIFFICULTIES[r.difficulty].name}</em>` : ''}</td>
           <td>${r.team.map(classDot).join('')}</td>
           <td>${r.victory ? `<b>Victoire</b>${r.floor > RUN_FLOORS ? ` +${r.floor - RUN_FLOORS}` : ''}` : r.outcome === 'abandon' ? `Abandon ét. ${r.floor}` : `Étage ${r.floor}`}</td>
           <td>${r.kills}</td><td>${duration(r.ticks)}</td><td>◆ ${r.shards}</td>
@@ -432,13 +449,14 @@ export class Menus {
     const s = this.host.save().settings;
     const range = (key: 'sfxVolume' | 'musicVolume', label: string): string =>
       `<label class="mn-option">${label}<input type="range" min="0" max="100" step="5" data-option="${key}" value="${Math.round(s[key] * 100)}" /></label>`;
-    const check = (key: 'shake' | 'hints', label: string): string =>
+    const check = (key: 'shake' | 'hints' | 'lighting', label: string): string =>
       `<label class="mn-option">${label}<input type="checkbox" data-option="${key}" ${s[key] ? 'checked' : ''} /></label>`;
     return `
       <h2>Options</h2>
       ${range('sfxVolume', 'Effets sonores')}
       ${range('musicVolume', 'Musique')}
       ${check('shake', 'Tremblements de caméra')}
+      ${check('lighting', 'Éclairage dynamique')}
       ${check('hints', 'Astuces pendant les premières runs')}
       <p class="mn-help">${keyLabel(KEY_BINDINGS.mute[0])} coupe tout le son en jeu.</p>
       <div class="mn-buttons mn-inline">
