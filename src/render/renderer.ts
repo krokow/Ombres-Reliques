@@ -3,6 +3,8 @@ import { Tile, type TileMap } from '../core/tilemap';
 import { hashString } from '../core/rng';
 import { BIOMES, type BiomeDef } from '../data/biomes';
 import { LIGHTS } from '../data/config';
+import { HAZARDS } from '../data/hazards';
+import { trapPhase } from '../systems/hazards';
 import { ARCANIST, BERSERKER, CLASSES, GUARDIAN, SHADOW_BLADE, SUMMONER } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef, type BossPattern } from '../data/enemies';
@@ -180,6 +182,7 @@ export class Renderer {
 
     ctx.drawImage(this.mapCanvas(game.map, pal), 0, 0);
     this.drawDynamicTiles(game, pal);
+    this.drawTraps(game);
     const view = {
       cx: camera.x,
       cy: camera.y,
@@ -406,6 +409,64 @@ export class Renderer {
       if (hasStatus(w, e, 'stun')) this.drawStunStars(radius);
     }
     ctx.restore();
+  }
+
+  /** Floor traps: plates that warn (glow, shake) before they fire. */
+  private drawTraps(game: Game): void {
+    const ctx = this.ctx;
+    for (const [, trap, t] of game.world.query('trap', 'transform')) {
+      const { phase, t: k } = trapPhase(trap);
+      const def = HAZARDS[trap.kind];
+      const r = def.radius;
+      const shake = phase === 'warn' ? Math.sin(this.time * 60) * k * 1.2 : 0;
+      const x = t.x + shake;
+      const y = t.y;
+      if (trap.kind === 'vent') {
+        ctx.fillStyle = '#2a1a14';
+        ctx.fillRect(x - r * 0.7, y - r * 0.7, r * 1.4, r * 1.4);
+        ctx.strokeStyle = phase === 'idle' ? '#5a3a2a' : `rgba(255, ${140 - k * 80}, 60, 1)`;
+        ctx.lineWidth = 2;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(x - r * 0.6, y + i * r * 0.35);
+          ctx.lineTo(x + r * 0.6, y + i * r * 0.35);
+          ctx.stroke();
+        }
+        if (phase === 'active') drawFire(ctx, t.x, t.y, r * 1.1, 1 - k * 0.5, this.time);
+        else if (phase === 'warn') {
+          ctx.fillStyle = `rgba(255, 120, 40, ${0.15 + k * 0.35})`;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        continue;
+      }
+      // Spikes and snares: a plate with holes; spikes / thorns pop up when active.
+      ctx.fillStyle = trap.kind === 'snare' ? '#2c3a22' : '#2a2632';
+      ctx.fillRect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6);
+      const warnCol = trap.kind === 'snare' ? '160, 230, 110' : '255, 80, 90';
+      if (phase === 'warn') {
+        ctx.fillStyle = `rgba(${warnCol}, ${0.15 + k * 0.4})`;
+        ctx.fillRect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6);
+      }
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const hx = x + (i - 1) * r * 0.5;
+          const hy = y + (j - 1) * r * 0.5;
+          if (phase === 'active') {
+            ctx.fillStyle = trap.kind === 'snare' ? '#7a9a3a' : '#d9dce6';
+            ctx.beginPath();
+            ctx.moveTo(hx - 2.5, hy + 2);
+            ctx.lineTo(hx, hy - 6);
+            ctx.lineTo(hx + 2.5, hy + 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = '#0b0910';
+            ctx.fillRect(hx - 1.5, hy - 1.5, 3, 3);
+          }
+        }
+      }
+    }
   }
 
   /** Same world transform as the main pass, for the lighting layer. */

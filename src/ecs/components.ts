@@ -315,6 +315,13 @@ export interface Ally {
   damageMult: number;
 }
 
+/** A floor trap (see data/hazards). */
+export interface Trap {
+  kind: import('../data/hazards').HazardId;
+  /** Position in the cycle (ticks). */
+  timer: number;
+}
+
 export interface ActiveStatus {
   id: StatusId;
   ticks: number;
@@ -416,6 +423,7 @@ export interface Components {
   elite: EliteState;
   minion: Minion;
   ally: Ally;
+  trap: Trap;
   encounter: Encounter;
   champion: Champion;
   boss: BossState;

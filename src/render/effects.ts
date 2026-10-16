@@ -168,7 +168,8 @@ export class Effects {
         }
         this.flashes.set(ev.target, 0.09);
         const angle = Math.atan2(ev.dirY, ev.dirX);
-        if (ev.byPlayer) {
+        // Traps and bombs are credited to the player but still hurt them.
+        if (ev.byPlayer && !ev.toPlayer) {
           camera.addTrauma(ev.crit ? FEEL.shake.crit : FEEL.shake.hit);
           this.burst(
             ev.x,
@@ -517,6 +518,13 @@ export class Effects {
           life: 0.5,
           maxLife: 0.5,
         });
+        break;
+      case 'trap':
+        if (ev.kind === 'spikes')
+          this.burst(ev.x, ev.y, 6, '#d9dce6', 90, 0.25, -Math.PI / 2, Math.PI, true);
+        else if (ev.kind === 'snare')
+          this.burst(ev.x, ev.y, 8, '#7a9a3a', 100, 0.35, 0, Math.PI * 2);
+        else this.burst(ev.x, ev.y, 14, '#ffb347', 160, 0.5, -Math.PI / 2, 1.2, true);
         break;
       case 'enemyHeal':
         this.rings.push({

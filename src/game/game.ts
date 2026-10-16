@@ -34,6 +34,7 @@ import { activeClass, playerBuffer, playerMove } from '../systems/player';
 import { applyUiAction } from '../systems/actions';
 import { interact, setupFloorLoot, updatePickups, useConsumable } from '../systems/loot';
 import { setupFloorEvents } from '../systems/events';
+import { setupFloorTraps, updateTraps } from '../systems/hazards';
 import { handleSwitchInput, install, reviveAll, tickParty } from '../systems/team';
 import { maxDashCharges, recomputeAll } from '../systems/progression';
 import { emptyStats, trackEvent, type RunStats } from './runStats';
@@ -186,6 +187,7 @@ export class Game implements Sim {
       v.y = 0;
     }
     updateZones(this);
+    updateTraps(this);
     const pt = this.world.req(this.player, 'transform');
     this.nav.update(Math.floor(pt.x / this.map.tileSize), Math.floor(pt.y / this.map.tileSize));
     enemyAI(this);
@@ -239,6 +241,7 @@ export class Game implements Sim {
     this.placePlayer(floor.map.tileCenter(floor.spawn.tx, floor.spawn.ty));
     setupFloorLoot(this, floor);
     setupFloorEvents(this, this.dungeon);
+    setupFloorTraps(this, floor);
     const party = this.world.req(this.player, 'party');
     if (party.relics.includes('lantern')) floor.explored.fill(1);
     this.events.push({ type: 'floor', level, biome: floor.biome });

@@ -143,4 +143,5 @@ export type GameEvent =
       text: string;
     }
   | { type: 'burrow'; x: number; y: number }
+  | { type: 'trap'; kind: import('../data/hazards').HazardId; x: number; y: number }
   | { type: 'guardBlock'; x: number; y: number; angle: number };
