@@ -17,10 +17,27 @@ interface EnemyBase {
   xp: number;
   /** Procedural sprite family used by the renderer. */
   look: EnemyLook;
+  /** Frontal shield: hits from within `arc` of its facing lose `reduction` of their damage. */
+  frontGuard?: { arc: number; reduction: number };
+  /** Splits into smaller enemies when it dies (enemy id typed as string, see summonId). */
+  splitInto?: { id: string; count: number };
 }
 
 export type EnemyLook =
-  'ghoul' | 'archer' | 'bloater' | 'caster' | 'knight' | 'beast' | 'golem' | 'imp' | 'mortar';
+  | 'ghoul'
+  | 'archer'
+  | 'bloater'
+  | 'caster'
+  | 'knight'
+  | 'beast'
+  | 'golem'
+  | 'imp'
+  | 'mortar'
+  | 'wraith'
+  | 'blob'
+  | 'burrower'
+  | 'shield'
+  | 'mimic';
 
 export interface MeleeEnemyDef extends EnemyBase {
   behavior: 'melee';
@@ -119,6 +136,48 @@ export interface ArtilleryEnemyDef extends EnemyBase {
   cooldownTicks: number;
 }
 
+/** Blinks behind the player (shimmer telegraphed at the arrival point), then strikes. */
+export interface BlinkerEnemyDef extends EnemyBase {
+  behavior: 'blinker';
+  /** Blinks when the player is between these distances. */
+  blinkRange: readonly [number, number];
+  /** Shimmer at the destination before the blink: the warning. */
+  blinkTicks: number;
+  /** Lands this far from the player, behind them. */
+  blinkDistance: number;
+  windupTicks: number;
+  strike: { damage: number; reach: number; radius: number; knockback: number };
+  recoveryTicks: number;
+  cooldownTicks: number;
+}
+
+/** Stays back and channels heals (+ a damage boost) on nearby allies; interrupt it! */
+export interface HealerEnemyDef extends EnemyBase {
+  behavior: 'healer';
+  preferredRange: readonly [number, number];
+  channelTicks: number;
+  healRadius: number;
+  /** Fraction of max HP restored to each ally. */
+  healFraction: number;
+  empowerTicks: number;
+  recoveryTicks: number;
+  cooldownTicks: number;
+}
+
+/** Digs underground (invulnerable, fast), surfaces under the player with a telegraph. */
+export interface BurrowerEnemyDef extends EnemyBase {
+  behavior: 'burrower';
+  /** Time spent tunnelling before it must surface. */
+  burrowTicks: number;
+  burrowSpeedMult: number;
+  /** Telegraph at the surfacing point (tracks, then locks). */
+  emergeTicks: number;
+  emerge: { radius: number; damage: number; knockback: number };
+  /** Exposed (vulnerable) after surfacing. */
+  exposedTicks: number;
+  cooldownTicks: number;
+}
+
 export interface BossProjectile {
   damage: number;
   speed: number;
@@ -191,6 +250,9 @@ export type EnemyDef =
   | SummonerEnemyDef
   | ChargerEnemyDef
   | ArtilleryEnemyDef
+  | BlinkerEnemyDef
+  | HealerEnemyDef
+  | BurrowerEnemyDef
   | BossEnemyDef;
 
 export const ENEMIES = {
@@ -577,6 +639,151 @@ export const ENEMIES = {
     palette: { body: '#b8862e', dark: '#5a3e12', eyes: '#ff4d4d' },
   },
   // ------------------------------------------------------------ Mini-bosses & bosses
+  // ------------------------------------------------------------ Nouveaux (contenu)
+  wraith: {
+    id: 'wraith',
+    name: 'Spectre errant',
+    behavior: 'blinker',
+    look: 'wraith',
+    maxHp: 34,
+    radius: 11,
+    mover: { moveSpeed: 115, accel: 1000, decel: 1200 },
+    turnRate: 5,
+    sightRange: 560,
+    blinkRange: [90, 340],
+    blinkTicks: 34,
+    blinkDistance: 46,
+    windupTicks: 16,
+    strike: { damage: 14, reach: 20, radius: 20, knockback: 240 },
+    recoveryTicks: 34,
+    cooldownTicks: 150,
+    weight: 0.8,
+    xp: 18,
+    palette: { body: '#a9b8e6', dark: '#3a4466', eyes: '#e0f0ff' },
+  },
+  sapJelly: {
+    id: 'sapJelly',
+    name: 'Gelée de sève',
+    behavior: 'melee',
+    look: 'blob',
+    maxHp: 60,
+    radius: 15,
+    mover: { moveSpeed: 70, accel: 600, decel: 900 },
+    turnRate: 3,
+    sightRange: 500,
+    attackRange: 40,
+    holdDistance: 10,
+    windupTicks: 34,
+    strike: { damage: 14, reach: 18, radius: 24, activeTicks: 6, knockback: 300, lunge: 200 },
+    recoveryTicks: 30,
+    cooldownTicks: 50,
+    weight: 1.6,
+    xp: 14,
+    splitInto: { id: 'sapDroplet', count: 3 },
+    palette: { body: '#c9a83a', dark: '#6b5a1c', eyes: '#3a2a10' },
+  },
+  sapDroplet: {
+    id: 'sapDroplet',
+    name: 'Goutte de sève',
+    behavior: 'melee',
+    look: 'blob',
+    maxHp: 14,
+    radius: 8,
+    mover: { moveSpeed: 135, accel: 1300, decel: 1500 },
+    turnRate: 6,
+    sightRange: 520,
+    attackRange: 24,
+    holdDistance: 6,
+    windupTicks: 18,
+    strike: { damage: 5, reach: 11, radius: 12, activeTicks: 5, knockback: 110, lunge: 200 },
+    recoveryTicks: 18,
+    cooldownTicks: 35,
+    weight: 0.5,
+    xp: 3,
+    palette: { body: '#e0c24a', dark: '#7a6620', eyes: '#3a2a10' },
+  },
+  burrower: {
+    id: 'burrower',
+    name: 'Fouisseur',
+    behavior: 'burrower',
+    look: 'burrower',
+    maxHp: 50,
+    radius: 13,
+    mover: { moveSpeed: 90, accel: 800, decel: 1000 },
+    turnRate: 4,
+    sightRange: 600,
+    burrowTicks: 120,
+    burrowSpeedMult: 2.2,
+    emergeTicks: 42,
+    emerge: { radius: 46, damage: 18, knockback: 380 },
+    exposedTicks: 110,
+    cooldownTicks: 30,
+    weight: 1.5,
+    xp: 18,
+    palette: { body: '#7a5a3a', dark: '#3a2a1a', eyes: '#ffd34d' },
+  },
+  shieldBearer: {
+    id: 'shieldBearer',
+    name: 'Porte-pavois',
+    behavior: 'melee',
+    look: 'shield',
+    maxHp: 80,
+    radius: 14,
+    mover: { moveSpeed: 80, accel: 700, decel: 1000 },
+    turnRate: 2.4,
+    sightRange: 520,
+    attackRange: 44,
+    holdDistance: 12,
+    windupTicks: 30,
+    strike: { damage: 16, reach: 24, radius: 22, activeTicks: 6, knockback: 360, lunge: 220 },
+    recoveryTicks: 34,
+    cooldownTicks: 55,
+    weight: 3,
+    xp: 22,
+    frontGuard: { arc: (140 * Math.PI) / 180, reduction: 0.85 },
+    palette: { body: '#7a6a5a', dark: '#3a3028', eyes: '#ff8a3d' },
+  },
+  ashPriestess: {
+    id: 'ashPriestess',
+    name: 'Prêtresse des cendres',
+    behavior: 'healer',
+    look: 'caster',
+    maxHp: 40,
+    radius: 12,
+    mover: { moveSpeed: 90, accel: 800, decel: 1100 },
+    turnRate: 4,
+    sightRange: 580,
+    preferredRange: [200, 320],
+    channelTicks: 60,
+    healRadius: 190,
+    healFraction: 0.35,
+    empowerTicks: 240,
+    recoveryTicks: 20,
+    cooldownTicks: 200,
+    weight: 1,
+    xp: 24,
+    palette: { body: '#e8e0d0', dark: '#6a5a4a', eyes: '#ff6a3d' },
+  },
+  mimic: {
+    id: 'mimic',
+    name: 'Mimique',
+    behavior: 'melee',
+    look: 'mimic',
+    maxHp: 110,
+    radius: 15,
+    mover: { moveSpeed: 135, accel: 1200, decel: 1400 },
+    turnRate: 4,
+    sightRange: 600,
+    attackRange: 46,
+    holdDistance: 8,
+    windupTicks: 22,
+    strike: { damage: 20, reach: 22, radius: 24, activeTicks: 6, knockback: 340, lunge: 340 },
+    recoveryTicks: 26,
+    cooldownTicks: 30,
+    weight: 2,
+    xp: 40,
+    palette: { body: '#8a5a2a', dark: '#4a2e14', eyes: '#ff3a3a' },
+  },
   ossuaryWarden: {
     id: 'ossuaryWarden',
     name: 'Gardien d’ossuaire',

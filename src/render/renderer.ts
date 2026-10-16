@@ -47,6 +47,11 @@ import {
   drawWisp,
   drawColossus,
   drawThrownAxe,
+  drawWraith,
+  drawBlob,
+  drawBurrower,
+  drawShieldBearer,
+  drawMimic,
 } from './sprites';
 
 export interface RenderOptions {
@@ -98,6 +103,15 @@ export function enemyTelegraph(game: Game, e: Entity): { windup: number; active:
         windup: ai.phase === 'windup' ? k(def.windupTicks) : 0,
         active: ai.phase === 'strike',
       };
+    case 'blinker':
+      return {
+        windup: ai.phase === 'windup' ? k(def.windupTicks) : ai.phase === 'channel' ? 0.3 : 0,
+        active: ai.phase === 'recover' && ai.phaseTicks < 6,
+      };
+    case 'healer':
+      return { windup: ai.phase === 'channel' ? k(def.channelTicks) : 0, active: false };
+    case 'burrower':
+      return { windup: ai.phase === 'windup' ? k(def.emergeTicks) : 0, active: false };
     case 'boss': {
       const st = w.get(e, 'boss');
       const pat = st
@@ -361,6 +375,30 @@ export class Renderer {
           break;
         case 'mortar':
           drawMortar(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'wraith':
+          drawWraith(ctx, radius, facing, def.palette, {
+            ...pose,
+            fading: ai.phase === 'channel' ? Math.min(1, ai.phaseTicks / 20) : 0,
+          });
+          break;
+        case 'blob':
+          drawBlob(ctx, radius, facing, def.palette, pose);
+          break;
+        case 'burrower':
+          drawBurrower(ctx, radius, facing, def.palette, {
+            ...pose,
+            underground: ai.phase === 'channel' || ai.phase === 'windup',
+          });
+          break;
+        case 'shield':
+          drawShieldBearer(ctx, radius, facing, def.palette, {
+            ...pose,
+            guarding: !staggered && ai.phase !== 'strike',
+          });
+          break;
+        case 'mimic':
+          drawMimic(ctx, radius, facing, def.palette, pose);
           break;
       }
       const boss = w.get(e, 'boss');
@@ -647,6 +685,30 @@ export class Renderer {
             pattern,
             Math.min(1, st.ticks / pattern.windupTicks),
           );
+      } else if (def.behavior === 'blinker' && ai.phase === 'channel') {
+        // Shimmer where it will appear: turn around!
+        const k = Math.min(1, ai.phaseTicks / def.blinkTicks);
+        ctx.strokeStyle = `rgba(200, 220, 255, ${0.3 + k * 0.6})`;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(ai.aimX, ai.aimY, body.radius * (2 - k), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else if (def.behavior === 'healer' && ai.phase === 'channel') {
+        const k = Math.min(1, ai.phaseTicks / def.channelTicks);
+        ctx.strokeStyle = `rgba(255, 140, 70, ${0.2 + k * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, def.healRadius * k, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (def.behavior === 'burrower' && ai.phase === 'windup') {
+        this.telegraphCircle(
+          ai.aimX,
+          ai.aimY,
+          def.emerge.radius,
+          Math.min(1, ai.phaseTicks / def.emergeTicks),
+        );
       } else if (def.behavior === 'summoner' && ai.phase === 'channel') {
         const progress = Math.min(1, ai.phaseTicks / def.channelTicks);
         ctx.fillStyle = `rgba(199, 125, 255, ${0.1 + progress * 0.15})`;

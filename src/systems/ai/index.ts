@@ -5,6 +5,7 @@ import { kamikazeBehavior, meleeBehavior, rangedBehavior, summonerBehavior } fro
 import { halt, perceive, setPhase, type Neighbor } from './context';
 import { bossBehavior } from './boss';
 import { artilleryBehavior, chargerBehavior } from './special';
+import { blinkerBehavior, burrowerBehavior, healerBehavior } from './advanced';
 
 /** Runs every enemy's state machine. Order: timers → stagger/stun → perception → behaviour. */
 export function enemyAI(sim: Sim): void {
@@ -79,6 +80,15 @@ export function enemyAI(sim: Sim): void {
         break;
       case 'artillery':
         artilleryBehavior(ctx, def);
+        break;
+      case 'blinker':
+        blinkerBehavior(ctx, def);
+        break;
+      case 'healer':
+        healerBehavior(ctx, def);
+        break;
+      case 'burrower':
+        burrowerBehavior(ctx, def);
         break;
     }
   }

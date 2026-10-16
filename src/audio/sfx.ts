@@ -111,6 +111,12 @@ export class Sfx {
         return this.play(ev.byPlayer ? (ev.crit ? 'crit' : 'hit') : 'hurt');
       case 'veil':
         return this.play('veil');
+      case 'guardBlock':
+        return this.play('block');
+      case 'enemyHeal':
+        return this.play('summon');
+      case 'burrow':
+        return this.play('wall');
       case 'allySummon':
         return this.play(ev.kind === 'wisp' ? 'soul' : 'slam');
       case 'allyFade':

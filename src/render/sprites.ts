@@ -1233,3 +1233,214 @@ export function drawThrownAxe(
   ctx.fill();
   ctx.restore();
 }
+
+/** Spectre errant: a hooded, tattered ghost with long claws; flickers while blinking. */
+export function drawWraith(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose & { fading: number },
+): void {
+  ctx.save();
+  ctx.globalAlpha = 0.85 * (1 - pose.fading * 0.8) + Math.sin(pose.time * 13) * 0.05;
+  ctx.rotate(facing);
+  // Trailing rags.
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  ctx.beginPath();
+  ctx.moveTo(r * 0.6, -r * 0.8);
+  for (let i = 0; i <= 5; i++) {
+    const k = i / 5;
+    const wave = Math.sin(pose.time * 8 + i * 1.3) * r * 0.25;
+    ctx.lineTo(-r * (1.2 + (i % 2) * 0.5) + wave, -r * 0.8 + k * r * 1.6);
+  }
+  ctx.lineTo(r * 0.6, r * 0.8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(r * 0.1, 0, r * 0.85, 0, Math.PI * 2);
+  ctx.fill();
+  // Claws reach forward during the windup.
+  ctx.strokeStyle = shade(pose.flash, '#e8f0ff');
+  ctx.lineWidth = 1.5;
+  for (const side of [-1, 1]) {
+    for (let c = 0; c < 3; c++) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.6, side * r * (0.5 + c * 0.12));
+      ctx.lineTo(r * (1.1 + pose.windup * 0.6), side * r * (0.65 + c * 0.2));
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#0a0c14';
+  ctx.beginPath();
+  ctx.arc(r * 0.3, 0, r * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(r * 0.45, -r * 0.25, r * 0.18, r * 0.12);
+  ctx.fillRect(r * 0.45, r * 0.13, r * 0.18, r * 0.12);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** Gelée / goutte de sève: a wobbling translucent blob with a shine. */
+export function drawBlob(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  const wob = Math.sin(pose.time * 6) * 0.08;
+  const squash = 1 + pose.windup * 0.25;
+  ctx.scale((1 + wob) * squash, (1 - wob) / squash);
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.arc(-r * 0.2, r * 0.25, r * 0.45, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.4, r * 0.22, r * 0.12, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.rotate(facing);
+  ctx.fillStyle = look.eyes;
+  ctx.fillRect(r * 0.35, -r * 0.3, r * 0.18, r * 0.18);
+  ctx.fillRect(r * 0.35, r * 0.12, r * 0.18, r * 0.18);
+  ctx.restore();
+}
+
+/** Fouisseur: digging claws and a pointed snout; underground it's just a moving mound. */
+export function drawBurrower(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose & { underground: boolean },
+): void {
+  ctx.save();
+  if (pose.underground) {
+    ctx.fillStyle = '#3a2c1e';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.1, r * 0.7, facing, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5a4630';
+    for (let i = 0; i < 5; i++) {
+      const a = pose.time * 6 + i * 1.3;
+      ctx.fillRect(Math.cos(a) * r * 0.8 - 1.5, Math.sin(a) * r * 0.5 - 1.5, 3, 3);
+    }
+    ctx.restore();
+    return;
+  }
+  ctx.rotate(facing);
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.4, side * r * 0.5);
+    ctx.lineTo(r * 1.1, side * r * 0.9);
+    ctx.lineTo(r * 0.6, side * r * 1.05);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 1.05, r * 0.85, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shade(pose.flash, '#d9a0a0');
+  ctx.beginPath();
+  ctx.moveTo(r * 0.8, -r * 0.25);
+  ctx.lineTo(r * 1.35, 0);
+  ctx.lineTo(r * 0.8, r * 0.25);
+  ctx.fill();
+  ctx.fillStyle = look.eyes;
+  ctx.fillRect(r * 0.45, -r * 0.4, r * 0.15, r * 0.12);
+  ctx.fillRect(r * 0.45, r * 0.28, r * 0.15, r * 0.12);
+  ctx.restore();
+}
+
+/** Porte-pavois: armoured body behind a tall tower shield held to the front. */
+export function drawShieldBearer(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose & { guarding: boolean },
+): void {
+  ctx.save();
+  ctx.rotate(facing);
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.beginPath();
+  ctx.arc(-r * 0.15, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = shade(pose.flash, look.dark);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Hammer raised during the windup.
+  ctx.save();
+  ctx.translate(-r * 0.2, r * 0.9);
+  ctx.rotate(0.6 - pose.windup * 1.8 + (pose.active ? 1.6 : 0));
+  ctx.fillStyle = '#5b4030';
+  ctx.fillRect(0, -1.5, r * 1.3, 3);
+  ctx.fillStyle = shade(pose.flash, '#9aa0aa');
+  ctx.fillRect(r * 1.1, -r * 0.35, r * 0.45, r * 0.7);
+  ctx.restore();
+  // Tower shield in front (drops a little when stunned/striking).
+  const lift = pose.guarding ? 0 : r * 0.25;
+  ctx.fillStyle = shade(pose.flash, '#8a8f99');
+  ctx.fillRect(r * 0.75 - lift, -r * 1.15, r * 0.4, r * 2.3);
+  ctx.fillStyle = shade(pose.flash, look.eyes);
+  ctx.fillRect(r * 0.82 - lift, -r * 0.2, r * 0.26, r * 0.4);
+  ctx.strokeStyle = shade(pose.flash, '#4a4e57');
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(r * 0.75 - lift, -r * 1.15, r * 0.4, r * 2.3);
+  ctx.restore();
+}
+
+/** Mimique: a treasure chest with a lid that snaps open on rows of teeth. */
+export function drawMimic(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: EnemyLook,
+  pose: EnemyPose,
+): void {
+  ctx.save();
+  ctx.rotate(facing + Math.PI / 2);
+  const open = 0.25 + pose.windup * 0.6 + (pose.active ? 0.4 : 0) + Math.sin(pose.time * 8) * 0.05;
+  const w = r * 1.7;
+  const h = r * 1.2;
+  ctx.fillStyle = shade(pose.flash, look.body);
+  ctx.fillRect(-w / 2, -h * 0.1, w, h * 0.7);
+  ctx.fillStyle = '#5a0c14';
+  ctx.fillRect(-w / 2 + 2, -h * 0.1 - open * h * 0.5, w - 4, open * h * 0.5);
+  ctx.fillStyle = '#f0e8d0';
+  for (let i = 0; i < 6; i++) {
+    const x = -w / 2 + 3 + i * ((w - 6) / 6);
+    ctx.beginPath();
+    ctx.moveTo(x, -h * 0.1);
+    ctx.lineTo(x + (w - 6) / 12, -h * 0.1 - 5);
+    ctx.lineTo(x + (w - 6) / 6, -h * 0.1);
+    ctx.fill();
+  }
+  ctx.fillStyle = shade(pose.flash, look.dark);
+  ctx.fillRect(-w / 2, -h * 0.1 - open * h * 0.5 - h * 0.35, w, h * 0.35);
+  ctx.fillStyle = '#ffd34d';
+  ctx.fillRect(-3, -h * 0.1 - open * h * 0.5 - h * 0.2, 6, 6);
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.eyes;
+  ctx.shadowBlur = 6;
+  ctx.fillRect(-w * 0.3, -h * 0.1 - open * h * 0.5 + 2, 4, 3);
+  ctx.fillRect(w * 0.3 - 4, -h * 0.1 - open * h * 0.5 + 2, 4, 3);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}

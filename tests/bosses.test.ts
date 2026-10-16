@@ -47,10 +47,10 @@ describe('run structure (choice 1b)', () => {
     expect(difficultyFor(10).hpMult).toBeGreaterThan(difficultyFor(9).hpMult * 1.3);
   });
 
-  it('every biome has 5-6 regular enemy types plus a true mini-boss and boss', () => {
+  it('every biome has 6-8 regular enemy types plus a true mini-boss and boss', () => {
     for (const biome of Object.values(BIOMES)) {
-      expect(biome.roster.length).toBeGreaterThanOrEqual(5);
-      expect(biome.roster.length).toBeLessThanOrEqual(6);
+      expect(biome.roster.length).toBeGreaterThanOrEqual(6);
+      expect(biome.roster.length).toBeLessThanOrEqual(8);
       for (const r of biome.roster) expect(isEnemyId(r.id)).toBe(true);
       expect(enemyDef(biome.miniboss).behavior).toBe('boss');
       expect(enemyDef(biome.boss).behavior).toBe('boss');
@@ -58,6 +58,7 @@ describe('run structure (choice 1b)', () => {
     // Summons referenced anywhere exist.
     for (const def of Object.values(ENEMIES)) {
       if (def.behavior === 'summoner') expect(isEnemyId(def.summonId)).toBe(true);
+      if ('splitInto' in def && def.splitInto) expect(isEnemyId(def.splitInto.id)).toBe(true);
       if (def.behavior === 'boss') {
         for (const ph of def.phases)
           for (const p of ph.patterns) if (p.kind === 'summon') expect(isEnemyId(p.id)).toBe(true);

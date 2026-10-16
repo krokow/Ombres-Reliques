@@ -133,4 +133,7 @@ export type GameEvent =
   | { type: 'bossPhase'; entity: Entity; phase: number; name: string; x: number; y: number }
   | { type: 'victory'; level: number }
   | { type: 'tutorialStep'; step: number }
-  | { type: 'tutorialDone' };
+  | { type: 'tutorialDone' }
+  | { type: 'enemyHeal'; x: number; y: number; radius: number }
+  | { type: 'burrow'; x: number; y: number }
+  | { type: 'guardBlock'; x: number; y: number; angle: number };

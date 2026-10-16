@@ -507,6 +507,34 @@ export class Effects {
           this.burst(ev.x, ev.y, 5, '#ffd0a8', 120, 0.2, ev.angle, 0.6, true);
         }
         break;
+      case 'enemyHeal':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.radius,
+          color: '#ff8a3d',
+          life: 0.5,
+          maxLife: 0.5,
+        });
+        this.burst(ev.x, ev.y, 16, '#ffb070', 120, 0.6, -Math.PI / 2, Math.PI);
+        this.text(ev.x, ev.y - 24, 'SOIN', '#ffb070', 10);
+        break;
+      case 'burrow':
+        this.burst(ev.x, ev.y, 14, '#6a5038', 140, 0.5, 0, Math.PI * 2);
+        break;
+      case 'guardBlock':
+        this.burst(
+          ev.x + Math.cos(ev.angle) * 14,
+          ev.y + Math.sin(ev.angle) * 14,
+          6,
+          '#ffe9a8',
+          200,
+          0.2,
+          ev.angle,
+          1.2,
+          true,
+        );
+        break;
       case 'allySummon':
         this.burst(
           ev.x,

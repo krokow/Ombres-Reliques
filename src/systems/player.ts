@@ -8,6 +8,7 @@ import type { Sim } from '../game/sim';
 import { steer } from './movement';
 import { moveMultiplier } from './statuses';
 import { activeMods } from './progression';
+import { isUntargetable } from './untargetable';
 
 /** Generic player building blocks shared by every class kit. */
 
@@ -231,6 +232,7 @@ export function enemiesAround(sim: Sim, x: number, y: number, radius: number): n
       ([e, , t, b, h]) =>
         h.hp > 0 &&
         !sim.world.isPendingDestroy(e) &&
+        !isUntargetable(sim.world, e) &&
         Math.hypot(t.x - x, t.y - y) <= radius + b.radius &&
         sim.map.lineOfSight(x, y, t.x, t.y),
     )

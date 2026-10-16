@@ -2,9 +2,9 @@ import { angleDiff } from '../core/math';
 import { CLASSES, GUARDIAN } from '../data/classes';
 import { FEEL } from '../data/combat';
 import { ELITE } from '../data/elites';
-import { enemyDef } from '../data/enemies';
+import { enemyDef, isEnemyId } from '../data/enemies';
 import type { Entity } from '../ecs/world';
-import { spawnExplosion } from '../game/factories';
+import { spawnEnemy, spawnExplosion } from '../game/factories';
 import type { Sim } from '../game/sim';
 import { applyStatus, damageDealtMultiplier, damageTakenMultiplier, hasStatus } from './statuses';
 import { dropLoot } from './loot';
@@ -13,6 +13,7 @@ import { enemiesAround } from './player';
 import { activeMods, awardKillXp, hasFlag, maxDashCharges, memberOf } from './progression';
 import { berserkerDamageMult, berserkerLifesteal, gainRage, inFrenzy } from './rage';
 import { fadeAlly, harvest } from './allies';
+import { isUntargetable } from './untargetable';
 
 export interface DamageSpec {
   amount: number;
@@ -29,6 +30,14 @@ export interface DamageSpec {
   dot: boolean;
   originX: number;
   originY: number;
+}
+
+function frontGuardOf(sim: Sim, e: Entity): { arc: number; reduction: number } | undefined {
+  const ai = sim.world.get(e, 'enemy');
+  if (!ai) return undefined;
+  // Stunned shield bearers drop their guard.
+  if (hasStatus(sim.world, e, 'stun')) return undefined;
+  return enemyDef(ai.defId).frontGuard;
 }
 
 function playerClass(sim: Sim): (typeof CLASSES)[keyof typeof CLASSES] {
@@ -131,6 +140,7 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const th = w.get(target, 'health');
   const tt = w.get(target, 'transform');
   if (!th || !tt || th.hp <= 0 || w.isPendingDestroy(target)) return 0;
+  if (isUntargetable(w, target)) return 0;
   const targetIsPlayer = target === sim.player;
   // Summons: their bonuses are baked in at summon time, rewards go to the summoner.
   const fromAlly = spec.source !== null && w.has(spec.source, 'ally');
@@ -140,6 +150,16 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
     factor *= (1 + activeMods(sim).damagePct) * berserkerDamageMult(sim);
     // Relic "Cape d'ombre": striking from invisibility hurts more.
     if (hasFlag(sim, 'shadowCloak') && hasStatus(w, sim.player, 'invisible')) factor *= 1.3;
+  }
+  // Shield bearers: hits from the front are mostly absorbed, flank them.
+  const guard = !targetIsPlayer && !spec.dot ? frontGuardOf(sim, target) : undefined;
+  if (guard) {
+    const toOrigin = Math.atan2(spec.originY - tt.y, spec.originX - tt.x);
+    const facing = w.get(target, 'facing')?.angle ?? 0;
+    if (Math.abs(angleDiff(facing, toOrigin)) <= guard.arc / 2) {
+      factor *= 1 - guard.reduction;
+      sim.events.push({ type: 'guardBlock', x: tt.x, y: tt.y, angle: facing });
+    }
   }
   if (targetIsPlayer) {
     factor *= 1 - Math.min(0.6, activeMods(sim).damageReduction);
@@ -266,6 +286,27 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
   const ai = w.get(target, 'enemy');
   if (ai) {
     const def = enemyDef(ai.defId);
+    // Jellies burst into droplets (which keep the parent's floor scaling).
+    if (def.splitInto && isEnemyId(def.splitInto.id)) {
+      const enc = w.get(target, 'encounter');
+      for (let i = 0; i < def.splitInto.count; i++) {
+        const a = (i / def.splitInto.count) * Math.PI * 2;
+        const child = spawnEnemy(
+          sim,
+          def.splitInto.id,
+          tt.x + Math.cos(a) * 14,
+          tt.y + Math.sin(a) * 14,
+          {
+            level: sim.level,
+          },
+        );
+        if (enc) w.add(child, 'encounter', { room: enc.room });
+        const imp = w.req(child, 'impulse');
+        imp.x += Math.cos(a) * 220;
+        imp.y += Math.sin(a) * 220;
+      }
+      sim.events.push({ type: 'summon', x: tt.x, y: tt.y });
+    }
     if (def.behavior === 'kamikaze') {
       spawnExplosion(sim, target, tt.x, tt.y, {
         radius: def.explosion.radius,
