@@ -4,6 +4,7 @@ import type { EnemyId } from '../data/enemies';
 import type { StatusApplication, StatusId } from '../data/statuses';
 import type { FlagId, Mods } from '../data/progression';
 import type { ConsumableId, ItemSlot, Rarity, RelicId } from '../data/items';
+import type { RunBonuses } from '../data/meta';
 import type { Entity, World } from './world';
 
 /** Position with the previous tick's value kept for render interpolation. */
@@ -128,6 +129,12 @@ export interface PlayerState {
   boltCount: number;
   /** Arcanist ultimate in progress. */
   meteors: MeteorState | null;
+  /** Berserker: rage (0..max) and ticks since it last dealt or took damage. */
+  rage: number;
+  rageIdle: number;
+  /** Berserker: frenzy (ultimate) and whirlwind ticks left. */
+  frenzy: number;
+  spin: number;
 }
 
 /** A generated piece of equipment. */
@@ -219,6 +226,10 @@ export interface Party {
   relics: RelicId[];
   /** Phoenix feather already used on this floor. */
   phoenixUsed: boolean;
+  /** Permanent-upgrade bonuses this run started with. */
+  bonuses: RunBonuses;
+  /** Relics that can drop in this run (meta unlocks). */
+  relicPool: RelicId[];
 }
 
 export type EnemyPhase =
@@ -280,6 +291,24 @@ export interface Champion {
 
 export interface Minion {
   summoner: Entity;
+}
+
+/** A summon fighting for the party (Invocateur). */
+export interface Ally {
+  kind: 'wisp' | 'colossus';
+  life: number;
+  maxLife: number;
+  cooldown: number;
+  /** Ticks into the current strike wind-up, -1 when not striking. */
+  windup: number;
+  /** Enemy it is attacking or was ordered to attack. */
+  target: Entity | null;
+  /** Ordered rush: faster and more aggressive. */
+  rush: number;
+  /** Ticks spent without seeing the player (teleports back when lost). */
+  lost: number;
+  /** Damage multiplier baked in from the summoner's modifiers. */
+  damageMult: number;
 }
 
 export interface ActiveStatus {
@@ -349,7 +378,16 @@ export interface Projectile {
 }
 
 export type RenderKind =
-  ClassId | EnemyId | 'shuriken' | 'boneArrow' | 'arcaneBolt' | 'frostOrb' | 'explosion';
+  | ClassId
+  | EnemyId
+  | 'shuriken'
+  | 'boneArrow'
+  | 'arcaneBolt'
+  | 'frostOrb'
+  | 'axe'
+  | 'explosion'
+  | 'wisp'
+  | 'colossus';
 
 export interface Renderable {
   kind: RenderKind;
@@ -373,6 +411,7 @@ export interface Components {
   enemy: EnemyState;
   elite: EliteState;
   minion: Minion;
+  ally: Ally;
   encounter: Encounter;
   champion: Champion;
   boss: BossState;

@@ -6,6 +6,7 @@ import { kitFor } from './kits';
 import { cancelCombo } from './player';
 import { dashRechargeTicks, hasFlag, maxDashCharges } from './progression';
 import { applyStatus } from './statuses';
+import { tickRage } from './rage';
 
 /** Party helpers. The active character's components live on the player entity. */
 
@@ -21,7 +22,7 @@ export function activeMember(sim: Sim): Character {
 }
 
 /** Installs a member's components on the player entity. */
-function install(sim: Sim, index: number): void {
+export function install(sim: Sim, index: number): void {
   const w = sim.world;
   const e = sim.player;
   const p = party(sim);
@@ -69,6 +70,7 @@ export function switchTo(sim: Sim, index: number, forced = false): boolean {
   cancelCombo(sim);
   leaving.state.blockTicks = -1;
   leaving.state.execution = null;
+  leaving.state.spin = 0;
   leaving.statuses.list = [];
   // Relic "Sablier fêlé": faster rotations.
   const hourglass = hasFlag(sim, 'brokenHourglass') ? 0.6 : 1;
@@ -125,6 +127,7 @@ export function tickParty(sim: Sim): void {
       const regen = def.manaRegenPerSecond * (1 + m.mods.manaRegenPct);
       s.mana = Math.min(def.maxMana + m.mods.maxManaFlat, s.mana + regen * sim.dt);
     }
+    if (def.id === 'berserker') tickRage(m, sim.dt);
     if (m.dash.charges < maxDashCharges(m) && ++m.dash.recharge >= dashRechargeTicks(m)) {
       m.dash.charges++;
       m.dash.recharge = 0;

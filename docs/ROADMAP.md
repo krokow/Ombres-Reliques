@@ -3,15 +3,15 @@
 | Milestone               | Contenu                                                                                           | État |
 | ----------------------- | ------------------------------------------------------------------------------------------------- | ---- |
 | M0 – Fondations         | Vite + TS strict, lint, tests, boucle à pas fixe, ECS, rendu canvas, input, caméra, overlay debug | ✅   |
-| M1 – Perso jouable      | mouvement, collisions grille, attaque de base, dash, ennemi simple, Lame d'Ombre v1               | ⏳   |
-| M2 – Combat complet     | dégâts, statuts, hitboxes, IA + A*, types d'ennemis, game feel                                    | ⬜   |
-| M3 – Donjon procédural  | salles, portes, minimap, RNG seedé, tests de solvabilité                                          | ⬜   |
-| M4 – Équipe et switch   | 3 persos, switch, effets d'entrée, KO/réanimation, 2 classes                                      | ⬜   |
-| M5 – Progression        | XP, level-up à choix, talents, évolutions                                                         | ⬜   |
-| M6 – Loot               | objets, affixes, raretés, coffres, boutique, autels, consommables                                 | ⬜   |
-| M7 – Boss et biomes     | 3 biomes, mini-boss, boss à phases, scaling                                                       | ⬜   |
-| M8 – Méta et sauvegarde | déblocages, sauvegarde versionnée, écran titre, sélection, daily seed                             | ⬜   |
-| M9 – Polish             | audio, particules, équilibrage, tutoriel, déploiement                                             | ⬜   |
+| M1 – Perso jouable      | mouvement, collisions grille, attaque de base, dash, ennemi simple, Lame d'Ombre v1               | ✅   |
+| M2 – Combat complet     | dégâts, statuts, hitboxes, IA + A*, types d'ennemis, game feel                                    | ✅   |
+| M3 – Donjon procédural  | salles, portes, minimap, RNG seedé, tests de solvabilité                                          | ✅   |
+| M4 – Équipe et switch   | 3 persos, switch, effets d'entrée, KO/réanimation, 2 classes                                      | ✅   |
+| M5 – Progression        | XP, level-up à choix, talents, évolutions                                                         | ✅   |
+| M6 – Loot               | objets, affixes, raretés, coffres, boutique, autels, consommables                                 | ✅   |
+| M7 – Boss et biomes     | 3 biomes, mini-boss, boss à phases, scaling                                                       | ✅   |
+| M8 – Méta et sauvegarde | déblocages, sauvegarde versionnée, écran titre, sélection, daily seed                             | ✅   |
+| M9 – Polish             | audio, particules, équilibrage, tutoriel, déploiement                                             | ⏳   |
 
 ## M0 – livré
 
@@ -188,3 +188,29 @@
   cônes, éventails de tirs).
 - HUD : étage dans le biome (« 2/3 »), boucle en mode infini, bandeau de victoire.
 - 191 tests (bestiaires, structure, chaque motif de chaque boss, phases, victoire → mode infini).
+
+## M8 – livré
+
+- **Deux classes à débloquer (choix 1a)**, complètes :
+  - **Invocateur** : fouet d'âme qui marque, feux-follets autonomes (ciblent les marqués), « Ordre »
+    (toutes les invocations foncent sur l'ennemi visé), échange de place avec un feu-follet, ultime
+    Colosse d'os ; passif Moisson (les ennemis tués près de lui se relèvent en feux-follets) ;
+    entrée avec 2 feux-follets ; les invocations continuent de se battre quand il est en réserve.
+  - **Berserker** : rage (coups donnés/reçus, kills) → dégâts et vol de vie ; haches en 3 temps, jet
+    de hache perçant qui ralentit, Bond qui s'écrase, Tourbillon payé en PV, Frénésie (rage max,
+    increvable à 1 PV) ; passif Sang chaud sous 40 % PV ; entrée en onde de choc.
+  - 3 cartes chacun (évolutions Tempête d'âmes / Maelström) et un arbre 3 branches × 3 paliers.
+  - Sprites procéduraux animés (robe en lambeaux et lanterne, fouet spectral ; haches, cornes, aura
+    de rage, toupie), feux-follets, colosse, haches en vol ; sons dédiés.
+- **Méta** : Éclats gagnés en fin de run ; Sanctuaire (2 classes, 2 reliquaires, 4 améliorations
+  légères) ; stats à vie.
+- **Sauvegarde versionnée** (`save/`) avec migrations, assainissement, sauvegarde corrompue mise de
+  côté, repli en mémoire sans `localStorage`.
+- **Run reprenable au début de l'étage (choix 2b)** : instantané complet (équipe, progression,
+  objets, reliques, flux RNG, stats) pris à chaque étage ; reprise vérifiée à l'identique.
+- **Écran titre** (continuer, nouvelle run, défi du jour, Sanctuaire, historique, commandes),
+  **sélection d'équipe** (ordre, seed libre), **pause** (Échap : reprendre, retour au titre,
+  abandon), **fin de run** (stats, gains, même seed / nouvelle run), panneau de **victoire** (mode
+  infini ou encaisser).
+- **Défi du jour** : seed et équipe du jour, sans bonus permanents, récompense ×1,5 une fois par jour.
+- Debug : `shards <n>`, `unlockall`. 221 tests.

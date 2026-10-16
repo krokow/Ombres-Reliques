@@ -1,6 +1,10 @@
 import type { GameEvent } from '../game/events';
 
 type SoundName =
+  | 'soul'
+  | 'soulBurst'
+  | 'slam'
+  | 'whirl'
   | 'swing'
   | 'swingHeavy'
   | 'hit'
@@ -90,10 +94,23 @@ export class Sfx {
       case 'swing':
         return this.play(ev.combo === 2 ? 'swingHeavy' : 'swing');
       case 'hit':
-        if (ev.dot) return this.play('tick');
+        if (ev.dot || ev.ally) return this.play('tick');
+        if (ev.fromAlly) return this.play('throw');
         return this.play(ev.byPlayer ? (ev.crit ? 'crit' : 'hit') : 'hurt');
       case 'veil':
         return this.play('veil');
+      case 'allySummon':
+        return this.play(ev.kind === 'wisp' ? 'soul' : 'slam');
+      case 'allyFade':
+        return ev.burst ? this.play('soulBurst') : undefined;
+      case 'allyStrike':
+        return ev.kind === 'colossus' ? this.play('slam') : undefined;
+      case 'command':
+        return this.play('ambush');
+      case 'spin':
+        return this.play('whirl');
+      case 'frenzy':
+        return this.play('roar');
       case 'ambush':
         return this.play('ambush');
       case 'blink':
@@ -158,6 +175,7 @@ export class Sfx {
         if (ev.spell === 'fire') return this.play('fire');
         if (ev.spell === 'frost') return this.play('frost');
         if (ev.spell === 'meteor') return;
+        if (ev.spell === 'axe') return this.play('throw');
         return this.play('bolt');
       case 'kill':
         return this.play('kill');
@@ -183,6 +201,21 @@ export class Sfx {
     switch (name) {
       case 'swing':
         this.noiseSweep(t, 0.09, 2600, 900, 0.35, 'bandpass');
+        break;
+      case 'soul':
+        this.tone(t, 'sine', 520, 1040, 0.25, 0.12);
+        this.tone(t + 0.05, 'triangle', 780, 1170, 0.2, 0.08);
+        break;
+      case 'soulBurst':
+        this.tone(t, 'sine', 900, 300, 0.25, 0.2);
+        this.noiseSweep(t, 0.2, 5000, 800, 0.25, 'bandpass');
+        break;
+      case 'slam':
+        this.tone(t, 'sine', 90, 35, 0.35, 0.7);
+        this.noiseSweep(t, 0.3, 900, 120, 0.45, 'lowpass');
+        break;
+      case 'whirl':
+        this.noiseSweep(t, 0.12, 900, 2600, 0.22, 'bandpass');
         break;
       case 'swingHeavy':
         this.noiseSweep(t, 0.16, 1800, 400, 0.5, 'bandpass');

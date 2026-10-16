@@ -134,6 +134,17 @@ export class Effects {
           this.text(ev.x, ev.y - 12, `${ev.damage}`, PALETTE.poison, 9);
           break;
         }
+        if (ev.ally) {
+          this.flashes.set(ev.target, 0.08);
+          this.burst(ev.x, ev.y, 5, '#5cffc4', 120, 0.3, Math.atan2(ev.dirY, ev.dirX), 1.2);
+          break;
+        }
+        if (ev.fromAlly) {
+          this.flashes.set(ev.target, 0.06);
+          this.burst(ev.x, ev.y, 4, '#5cffc4', 160, 0.25, Math.atan2(ev.dirY, ev.dirX), 0.9, true);
+          this.text(ev.x, ev.y - 14, `${ev.damage}`, '#a8ffe0', ev.crit ? 12 : 9);
+          break;
+        }
         if (!ev.byPlayer && ev.absorbed >= ev.damage) {
           this.text(ev.x, ev.y - 16, `(${ev.damage})`, '#dbe8ff', 11);
           this.flashes.set(ev.target, 0.06);
@@ -419,8 +430,13 @@ export class Effects {
         this.text(ev.x, ev.y - 26, 'PARADE !', PALETTE.crit, 13);
         break;
       case 'shockwave': {
-        const color =
-          ev.color === 'gold' ? '#ffcf5a' : ev.color === 'frost' ? '#bff0ff' : PALETTE.summon;
+        const color = {
+          gold: '#ffcf5a',
+          frost: '#bff0ff',
+          violet: PALETTE.summon,
+          blood: '#ff5a3d',
+          soul: '#5cffc4',
+        }[ev.color];
         camera.addTrauma(ev.radius > 120 ? 0.45 : 0.2);
         this.rings.push({ x: ev.x, y: ev.y, radius: ev.radius, color, life: 0.35, maxLife: 0.35 });
         this.rings.push({
@@ -471,7 +487,96 @@ export class Effects {
           this.burst(ev.x, ev.y, 8, '#e6fbff', 100, 0.3, ev.angle, 1.2);
         } else if (ev.spell === 'fire') {
           this.burst(ev.x, ev.y, 18, '#ff8a3d', 160, 0.5, -Math.PI / 2, Math.PI);
+        } else if (ev.spell === 'axe') {
+          this.burst(ev.x, ev.y, 5, '#ffd0a8', 120, 0.2, ev.angle, 0.6, true);
         }
+        break;
+      case 'allySummon':
+        this.burst(
+          ev.x,
+          ev.y,
+          ev.kind === 'wisp' ? 10 : 30,
+          '#5cffc4',
+          140,
+          0.5,
+          -Math.PI / 2,
+          Math.PI,
+        );
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.kind === 'wisp' ? 16 : 50,
+          color: '#5cffc4',
+          life: 0.35,
+          maxLife: 0.35,
+        });
+        break;
+      case 'allyFade':
+        this.burst(
+          ev.x,
+          ev.y,
+          ev.burst ? 20 : 8,
+          ev.burst ? '#c8fff0' : '#5cffc4',
+          ev.burst ? 260 : 80,
+          0.5,
+          0,
+          Math.PI * 2,
+          ev.burst,
+        );
+        if (ev.burst) {
+          camera.addTrauma(0.12);
+          this.rings.push({
+            x: ev.x,
+            y: ev.y,
+            radius: 56,
+            color: '#5cffc4',
+            life: 0.3,
+            maxLife: 0.3,
+          });
+        }
+        break;
+      case 'allyStrike':
+        if (ev.kind === 'colossus') {
+          camera.addTrauma(0.18);
+          this.rings.push({
+            x: ev.x,
+            y: ev.y,
+            radius: 58,
+            color: '#e8e0cc',
+            life: 0.3,
+            maxLife: 0.3,
+          });
+          this.burst(ev.x, ev.y, 16, '#cfc6b0', 220, 0.4, 0, Math.PI * 2);
+        } else {
+          this.burst(ev.x, ev.y, 3, '#5cffc4', 90, 0.2, ev.angle, 0.5, true);
+        }
+        break;
+      case 'command':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 28,
+          color: '#fff0a0',
+          life: 0.4,
+          maxLife: 0.4,
+        });
+        this.text(ev.x, ev.y - 20, 'ORDRE', '#fff0a0', 10);
+        break;
+      case 'spin':
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: ev.radius,
+          color: '#ff8a6a',
+          life: 0.18,
+          maxLife: 0.18,
+        });
+        this.burst(ev.x, ev.y, 6, '#d9dcf2', ev.radius * 4, 0.2, 0, Math.PI * 2, true);
+        break;
+      case 'frenzy':
+        camera.addTrauma(0.4);
+        this.text(ev.x, ev.y - 30, 'FRÉNÉSIE !', '#ff3a1a', 15);
+        this.burst(ev.x, ev.y, 30, '#ff3a1a', 300, 0.5, 0, Math.PI * 2, true);
         break;
       case 'interactFail':
         this.text(ev.x, ev.y - 26, ev.reason, PALETTE.hudDim, 10);

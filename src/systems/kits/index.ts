@@ -1,8 +1,10 @@
 import type { ClassId } from '../../data/classes';
 import { arcanistKit } from './arcanist';
+import { berserkerKit } from './berserker';
 import { guardianKit } from './guardian';
 import type { Kit } from './kit';
 import { shadowBladeKit } from './shadowBlade';
+import { summonerKit } from './summoner';
 
 /**
  * Kit lookup. A function (not a table built at import time) because kits and
@@ -17,6 +19,10 @@ export function kitFor(id: ClassId): Kit {
       return guardianKit;
     case 'arcanist':
       return arcanistKit;
+    case 'summoner':
+      return summonerKit;
+    case 'berserker':
+      return berserkerKit;
   }
 }
 

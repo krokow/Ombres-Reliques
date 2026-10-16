@@ -156,11 +156,14 @@ function championIsBoss(sim: Sim, e: Entity): boolean {
 
 /** A relic the party doesn't own yet (curses only when asked for). */
 export function rollRelic(sim: Sim, curse: boolean): RelicId {
-  const owned = new Set(party(sim).relics);
-  const pool = (Object.keys(RELICS) as RelicId[]).filter(
-    (id) => isCurse(id) === curse && !owned.has(id),
+  const p = party(sim);
+  const owned = new Set(p.relics);
+  // Meta unlocks decide which relics can appear in this run (curses always can).
+  const allowed = (id: RelicId): boolean => curse || p.relicPool.includes(id);
+  const all = (Object.keys(RELICS) as RelicId[]).filter(
+    (id) => isCurse(id) === curse && allowed(id),
   );
-  const all = (Object.keys(RELICS) as RelicId[]).filter((id) => isCurse(id) === curse);
+  const pool = all.filter((id) => !owned.has(id));
   return sim.rng.loot.pick(pool.length > 0 ? pool : all);
 }
 
@@ -208,9 +211,11 @@ export function updatePickups(sim: Sim): void {
     }
     if (d <= LOOT.pickupRadius) {
       let label = '';
+      let amount = 0;
       if (pk.kind === 'gold') {
         const gain = Math.max(1, Math.round(pk.amount * (1 + activeMods(sim).goldPct)));
         p.gold += gain;
+        amount = gain;
         label = `+${gain} or`;
       } else if (pk.kind === 'key') {
         p.keys++;
@@ -220,7 +225,7 @@ export function updatePickups(sim: Sim): void {
         label = CONSUMABLES[pk.id].name;
       }
       w.destroy(e);
-      sim.events.push({ type: 'pickup', kind: pk.kind, x: t.x, y: t.y, label });
+      sim.events.push({ type: 'pickup', kind: pk.kind, x: t.x, y: t.y, label, amount });
       continue;
     }
     const speed = 380;
@@ -454,7 +459,14 @@ export function salvageItem(sim: Sim, itemEntity: Entity): boolean {
   const value = itemValue(pk.item);
   party(sim).gold += value;
   w.destroy(itemEntity);
-  sim.events.push({ type: 'pickup', kind: 'gold', x: t.x, y: t.y, label: `+${value} or` });
+  sim.events.push({
+    type: 'pickup',
+    kind: 'gold',
+    x: t.x,
+    y: t.y,
+    label: `+${value} or`,
+    amount: value,
+  });
   return true;
 }
 

@@ -100,6 +100,44 @@
 - **Contrôle des boss** : jamais interrompus (pas de stun-lock), étourdissements ×0,15-0,25.
 - **Mode infini (choix 2b)** : même contenu, `difficultyFor(level)` = scaling par étage × scaling de boucle.
 
+## Méta et sauvegarde (M8)
+
+- **Deux classes à débloquer (choix 1a)**, complètes (kit, 3 cartes dont une évolution, arbre 3×3) :
+  - **Invocateur** : fouet d'âme long et étroit qui marque ; feux-follets autonomes (plafond 4, 15 s)
+    qui ciblent d'abord les ennemis marqués ; « Ordre » lance toutes les invocations sur l'ennemi
+    sous le curseur ; la mobilité échange sa place avec un feu-follet ; ultime « Colosse d'os ».
+    Passif : un ennemi tué près de lui peut se relever en feu-follet. Les invocations restent en jeu
+    quand on switche : l'Invocateur prépare le terrain pour les autres.
+  - **Berserker** : rage (coups donnés et reçus, décroît hors combat) qui augmente dégâts et vol de
+    vie ; tourbillon payé en PV ; bond qui s'écrase à l'atterrissage ; ultime « Frénésie » (rage
+    bloquée au max, impossible de descendre sous 1 PV).
+- **Invocations** (`systems/allies.ts`) : corps alliés (équipe `player`), les ennemis ne les
+  chassent pas mais leurs attaques les touchent (elles bloquent les projectiles). Leurs dégâts
+  chargent l'ultime de l'Invocateur, sans hit-stop (sinon le jeu saccade).
+- **Monnaie : les Éclats**, versés à la fin de chaque run (mort, abandon ou victoire encaissée) :
+  profondeur, mini-boss et boss vaincus, victoire, éliminations. Achats au **Sanctuaire** : les deux
+  classes, deux reliquaires (certaines reliques ne tombent qu'une fois débloquées), quatre
+  améliorations permanentes **volontairement légères** (+5 % PV par rang, or et potion de départ,
+  réanimation entre étages).
+- **Sauvegarde (choix 2b)** : la méta + la run **reprenable au début de l'étage en cours**. Chaque
+  étage commence « à neuf » (recharges, dashs, statuts, boucliers remis à zéro), ce qui rend
+  l'instantané de début d'étage complet : reprendre redonne exactement la même partie (testé sur
+  400 ticks avec les flux RNG restaurés). Quitter en plein étage fait donc rejouer cet étage.
+- **Format versionné** (`save/save.ts`) : `version` + chaîne de migrations (v1 = méta seule →
+  v2 = run, historique, stats, réglages ; v1 n'a jamais été publiée, elle sert à éprouver la chaîne).
+  Tout est assaini au chargement (identifiants inconnus filtrés, run invalide écartée sans perdre la
+  méta) ; une sauvegarde illisible est mise de côté (`….corrupt`) plutôt qu'écrasée ; une version
+  future n'est jamais mal lue. Sans `localStorage` (navigation privée…), le jeu tourne en mémoire.
+- **Défi du jour** : seed `JOUR-AAAAMMJJ` (date locale) et équipe tirée de ce seed parmi les
+  **5 classes, même verrouillées** (avant-goût), sans améliorations permanentes et avec toutes les
+  reliques : même partie pour tout le monde. Rejouable, mais seule la première tentative du jour
+  rapporte (×1,5).
+- **Menus** en DOM (`ui/menus.ts`) : titre, sélection d'équipe (ordre = touches 1/2/3, seed libre),
+  Sanctuaire, historique (20 dernières runs + totaux), commandes, pause (Échap) et fin de run. Les
+  menus mettent le jeu en pause ; les panneaux en jeu (cartes, objets) ne le font toujours pas.
+- **Statistiques de run** (`game/runStats.ts`) calculées par la simulation à partir de ses propres
+  événements : elles voyagent dans l'instantané et restent déterministes.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

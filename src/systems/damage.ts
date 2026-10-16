@@ -10,7 +10,9 @@ import { applyStatus, damageDealtMultiplier, damageTakenMultiplier, hasStatus } 
 import { dropLoot } from './loot';
 import { handleCharacterDown } from './team';
 import { enemiesAround } from './player';
-import { activeMods, awardKillXp, hasFlag, maxDashCharges } from './progression';
+import { activeMods, awardKillXp, hasFlag, maxDashCharges, memberOf } from './progression';
+import { berserkerDamageMult, berserkerLifesteal, gainRage, inFrenzy } from './rage';
+import { fadeAlly, harvest } from './allies';
 
 export interface DamageSpec {
   amount: number;
@@ -47,6 +49,7 @@ export function playerBlast(
   damage: number,
   knockback: number,
   stagger: number,
+  color: 'gold' | 'blood' = 'gold',
 ): void {
   const t = sim.world.req(sim.player, 'transform');
   for (const e of enemiesAround(sim, t.x, t.y, radius)) {
@@ -67,7 +70,7 @@ export function playerBlast(
       originY: t.y,
     });
   }
-  sim.events.push({ type: 'shockwave', x: t.x, y: t.y, radius, color: 'gold' });
+  sim.events.push({ type: 'shockwave', x: t.x, y: t.y, radius, color });
 }
 
 /**
@@ -129,10 +132,12 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const tt = w.get(target, 'transform');
   if (!th || !tt || th.hp <= 0 || w.isPendingDestroy(target)) return 0;
   const targetIsPlayer = target === sim.player;
+  // Summons: their bonuses are baked in at summon time, rewards go to the summoner.
+  const fromAlly = spec.source !== null && w.has(spec.source, 'ally');
 
   let factor = damageTakenMultiplier(w, target);
-  if (spec.byPlayer && !targetIsPlayer) {
-    factor *= 1 + activeMods(sim).damagePct;
+  if (spec.byPlayer && !targetIsPlayer && !fromAlly) {
+    factor *= (1 + activeMods(sim).damagePct) * berserkerDamageMult(sim);
     // Relic "Cape d'ombre": striking from invisibility hurts more.
     if (hasFlag(sim, 'shadowCloak') && hasStatus(w, sim.player, 'invisible')) factor *= 1.3;
   }
@@ -153,8 +158,21 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const total = targetIsPlayer && sim.godMode ? 0 : amount;
   const absorbed = Math.min(th.shield, total);
   th.shield -= absorbed;
-  const dealt = Math.min(th.hp, total - absorbed);
+  // Frenzy: the berserker can't drop below 1 HP.
+  const floor = targetIsPlayer && inFrenzy(sim) ? 1 : 0;
+  const dealt = Math.max(0, Math.min(th.hp - floor, total - absorbed));
   th.hp -= dealt;
+  // Talent "Coup de grâce": badly wounded enemies are finished off.
+  if (
+    spec.byPlayer &&
+    !targetIsPlayer &&
+    !fromAlly &&
+    th.hp > 0 &&
+    th.hp < th.max * 0.12 &&
+    hasFlag(sim, 'execute') &&
+    !w.has(target, 'boss')
+  )
+    th.hp = 0;
   th.sinceHit = 0;
 
   const imp = w.get(target, 'impulse');
@@ -178,15 +196,33 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
     byPlayer: spec.byPlayer,
     dot: spec.dot,
     absorbed,
+    ally: w.has(target, 'ally'),
+    fromAlly,
   });
 
-  if (spec.byPlayer && !targetIsPlayer) {
+  if (spec.byPlayer && !targetIsPlayer && fromAlly) {
+    const summoner = memberOf(sim, 'summoner');
+    if (summoner && !summoner.ko) {
+      summoner.state.energy = Math.min(
+        CLASSES.summoner.maxEnergy,
+        summoner.state.energy +
+          dealt * CLASSES.summoner.energyPerDamage * (1 + summoner.mods.energyGainPct),
+      );
+      // Talent "Lien vital": every summon hit heals whoever is in control.
+      const ph = w.get(sim.player, 'health');
+      if (summoner.flags.has('soulLink') && ph && ph.hp > 0) ph.hp = Math.min(ph.max, ph.hp + 1);
+    }
+  } else if (spec.byPlayer && !targetIsPlayer) {
     gainEnergy(sim, dealt * playerClass(sim).energyPerDamage);
-    const leech = activeMods(sim).lifesteal;
+    gainRage(sim, dealt * CLASSES.berserker.rage.perDamageDealt);
+    const leech = activeMods(sim).lifesteal + berserkerLifesteal(sim);
     const ph = w.get(sim.player, 'health');
     if (leech > 0 && ph && ph.hp > 0) ph.hp = Math.min(ph.max, ph.hp + dealt * leech);
   }
-  if (targetIsPlayer) gainEnergy(sim, (dealt + absorbed) * playerClass(sim).energyPerDamageTaken);
+  if (targetIsPlayer) {
+    gainEnergy(sim, (dealt + absorbed) * playerClass(sim).energyPerDamageTaken);
+    gainRage(sim, (dealt + absorbed) * CLASSES.berserker.rage.perDamageTaken);
+  }
 
   if (targetIsPlayer && spec.source !== null) {
     const lifesteal = w.get(spec.source, 'elite')?.lifesteal ?? 0;
@@ -198,7 +234,7 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
     if (targetIsPlayer) {
       th.invuln = playerClass(sim).hurtInvulnTicks;
       sim.hitstop(FEEL.hitstop.playerHurt);
-    } else if (spec.byPlayer) {
+    } else if (spec.byPlayer && !fromAlly) {
       sim.hitstop(spec.crit ? FEEL.hitstop.crit : FEEL.hitstop.hit);
     }
   }
@@ -218,8 +254,13 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
     sim.events.push({ type: 'playerDeath', x: tt.x, y: tt.y });
     return;
   }
+  if (w.has(target, 'ally')) {
+    fadeAlly(sim, target);
+    return;
+  }
   const kind = w.get(target, 'renderable')?.kind ?? 'ghoul';
-  sim.events.push({ type: 'kill', target, kind, x: tt.x, y: tt.y, byPlayer });
+  const elite = w.has(target, 'elite');
+  sim.events.push({ type: 'kill', target, kind, x: tt.x, y: tt.y, byPlayer, elite });
 
   const ai = w.get(target, 'enemy');
   if (ai) {
@@ -241,6 +282,7 @@ function kill(sim: Sim, target: Entity, byPlayer: boolean): void {
   if (byPlayer) {
     awardKillXp(sim, target);
     dropLoot(sim, target);
+    harvest(sim, tt.x, tt.y);
   }
   w.destroy(target);
   if (byPlayer) onPlayerKill(sim);
@@ -256,6 +298,9 @@ export function onPlayerKill(sim: Sim): void {
   const dash = w.req(sim.player, 'dash');
   party.kills++;
   gainEnergy(sim, def.energyOnKill);
+  gainRage(sim, CLASSES.berserker.rage.onKill);
+  // Talent "Sans fin": kills keep the frenzy going.
+  if (player.frenzy > 0 && hasFlag(sim, 'endlessFrenzy')) player.frenzy += 60;
   const member = party.members[party.active];
   const maxCharges = member ? maxDashCharges(member) : def.dash.maxCharges;
   // Talents: full dash reset (blade), charge reset (guardian).

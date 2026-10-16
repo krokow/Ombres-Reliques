@@ -74,7 +74,7 @@ export function dashRechargeTicks(m: Character): number {
  * Rebuilds a character's modifiers (cards, talents, equipment, party relics,
  * altar scars) and re-derives max HP, keeping the missing HP constant.
  */
-export function recompute(m: Character, relics: readonly RelicId[] = []): void {
+export function recompute(m: Character, relics: readonly RelicId[] = [], bonusMaxHpPct = 0): void {
   const mods = emptyMods();
   const flags = new Set<FlagId>();
   const add = (partial: Partial<Mods> | undefined, times: number): void => {
@@ -100,6 +100,7 @@ export function recompute(m: Character, relics: readonly RelicId[] = []): void {
     if (r.flag) flags.add(r.flag);
   }
   mods.maxHpPct -= LOOT.altar.sacrificeMaxHpPct * m.scars;
+  mods.maxHpPct += bonusMaxHpPct;
   m.mods = mods;
   m.flags = flags;
   const newMax = Math.max(1, Math.round(CLASSES[m.classId].maxHp * (1 + mods.maxHpPct)));
@@ -179,11 +180,12 @@ export function canTakeTalent(m: Character, nodeId: string): boolean {
 /** Recomputes every party member (after relic or curse changes). */
 export function recomputeAll(sim: Sim): void {
   const party = sim.world.get(sim.player, 'party');
-  for (const m of party?.members ?? []) recompute(m, party?.relics ?? []);
+  for (const m of party?.members ?? []) recompute(m, party?.relics ?? [], party?.bonuses.maxHpPct);
 }
 
-function relicsOf(sim: Sim): readonly RelicId[] {
-  return sim.world.get(sim.player, 'party')?.relics ?? [];
+function recomputeMember(sim: Sim, m: Character): void {
+  const party = sim.world.get(sim.player, 'party');
+  recompute(m, party?.relics ?? [], party?.bonuses.maxHpPct);
 }
 
 /** Applies a UI command; invalid commands are ignored. */
@@ -197,7 +199,7 @@ export function applyProgressAction(sim: Sim, action: ProgressAction): boolean {
     p.cards[id] = (p.cards[id] ?? 0) + 1;
     p.pendingCards--;
     p.offer = null;
-    recompute(m, relicsOf(sim));
+    recomputeMember(sim, m);
     sim.events.push({ type: 'cardTaken', classId: m.classId, card: id });
     ensureOffer(sim, m);
     return true;
@@ -205,7 +207,7 @@ export function applyProgressAction(sim: Sim, action: ProgressAction): boolean {
   if (!canTakeTalent(m, action.node)) return false;
   p.talents.push(action.node);
   p.talentPoints--;
-  recompute(m, relicsOf(sim));
+  recomputeMember(sim, m);
   sim.events.push({ type: 'talentTaken', classId: m.classId, node: action.node });
   return true;
 }

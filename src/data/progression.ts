@@ -32,6 +32,12 @@ export interface Mods {
   /** Fraction of incoming damage removed (capped). */
   damageReduction: number;
   goldPct: number;
+  minionDamagePct: number;
+  minionLifePct: number;
+  maxMinionsBonus: number;
+  rageGainPct: number;
+  /** Fraction of rage decay removed. */
+  rageDecayReduction: number;
 }
 
 /** Behaviour switches unlocked by evolution cards and talent capstones. */
@@ -55,6 +61,18 @@ export type FlagId =
   | 'frostBlink'
   | 'meteorFire'
   | 'twinBolt'
+  // Invocateur
+  | 'soulfire'
+  | 'soulStorm'
+  | 'graveHarvest'
+  | 'soulLink'
+  | 'twinColossus'
+  // Berserker
+  | 'twinAxes'
+  | 'maelstrom'
+  | 'execute'
+  | 'endlessFrenzy'
+  | 'leapStun'
   // Global relics / curses (M6)
   | 'shadowCloak'
   | 'brokenHourglass'
@@ -277,6 +295,71 @@ export const CARDS: readonly CardDef[] = [
     evolution: true,
     flag: 'shatter',
   },
+  // --- Invocateur
+  {
+    id: 'swarm',
+    name: 'Essaim',
+    desc: '+1 feu-follet maximum',
+    classId: 'summoner',
+    minLevel: 2,
+    maxStacks: 2,
+    weight: 7,
+    mods: { maxMinionsBonus: 1 },
+  },
+  {
+    id: 'soulfire',
+    name: 'Âmes ardentes',
+    desc: 'Invocations +25 % de dégâts, leurs coups brûlent',
+    classId: 'summoner',
+    minLevel: 3,
+    maxStacks: 1,
+    weight: 7,
+    flag: 'soulfire',
+    mods: { minionDamagePct: 0.25 },
+  },
+  {
+    id: 'soulStorm',
+    name: 'Tempête d’âmes',
+    desc: 'ÉVOLUTION — les feux-follets explosent quand ils s’éteignent',
+    classId: 'summoner',
+    minLevel: 5,
+    maxStacks: 1,
+    weight: 9,
+    evolution: true,
+    flag: 'soulStorm',
+  },
+  // --- Berserker
+  {
+    id: 'bloodlust',
+    name: 'Soif de sang',
+    desc: '+40 % de rage gagnée',
+    classId: 'berserker',
+    minLevel: 2,
+    maxStacks: 2,
+    weight: 7,
+    mods: { rageGainPct: 0.4 },
+  },
+  {
+    id: 'twinAxes',
+    name: 'Haches jumelles',
+    desc: 'Le jet lance deux haches en V',
+    classId: 'berserker',
+    minLevel: 3,
+    maxStacks: 1,
+    weight: 7,
+    flag: 'twinAxes',
+  },
+  {
+    id: 'maelstrom',
+    name: 'Maelström',
+    desc: 'ÉVOLUTION — le Tourbillon aspire les ennemis et dure +50 %',
+    classId: 'berserker',
+    minLevel: 5,
+    maxStacks: 1,
+    weight: 9,
+    evolution: true,
+    flag: 'maelstrom',
+  },
 ];
 
 export const TALENTS: Record<ClassId, readonly TalentBranch[]> = {
@@ -454,6 +537,123 @@ export const TALENTS: Record<ClassId, readonly TalentBranch[]> = {
           name: 'Traits jumeaux',
           desc: 'Un trait sur deux est surchargé',
           flag: 'twinBolt',
+        },
+      ],
+    },
+  ],
+  summoner: [
+    {
+      name: 'Nuée',
+      nodes: [
+        {
+          id: 'sm-n1',
+          name: 'Appel',
+          desc: 'Feux-follets : −25 % de recharge',
+          mods: { skillCooldownPct: 0.25 },
+        },
+        {
+          id: 'sm-n2',
+          name: 'Cortège',
+          desc: '+1 feu-follet maximum',
+          mods: { maxMinionsBonus: 1 },
+        },
+        {
+          id: 'sm-n3',
+          name: 'Moisson',
+          desc: 'Chaque kill proche relève un feu-follet',
+          flag: 'graveHarvest',
+        },
+      ],
+    },
+    {
+      name: 'Lien',
+      nodes: [
+        {
+          id: 'sm-l1',
+          name: 'Ancrage',
+          desc: 'Invocations : +30 % de durée',
+          mods: { minionLifePct: 0.3 },
+        },
+        {
+          id: 'sm-l2',
+          name: 'Ferveur',
+          desc: 'Invocations : +20 % de dégâts',
+          mods: { minionDamagePct: 0.2 },
+        },
+        {
+          id: 'sm-l3',
+          name: 'Lien vital',
+          desc: 'Chaque coup d’invocation soigne l’actif de 1 PV',
+          flag: 'soulLink',
+        },
+      ],
+    },
+    {
+      name: 'Os',
+      nodes: [
+        { id: 'sm-o1', name: 'Os denses', desc: '+15 % PV max', mods: { maxHpPct: 0.15 } },
+        {
+          id: 'sm-o2',
+          name: 'Carapace',
+          desc: '−10 % de dégâts subis',
+          mods: { damageReduction: 0.1 },
+        },
+        {
+          id: 'sm-o3',
+          name: 'Jumeaux d’os',
+          desc: 'L’ultime relève deux colosses',
+          flag: 'twinColossus',
+        },
+      ],
+    },
+  ],
+  berserker: [
+    {
+      name: 'Carnage',
+      nodes: [
+        { id: 'bz-c1', name: 'Tranchant', desc: '+10 % dégâts', mods: { damagePct: 0.1 } },
+        { id: 'bz-c2', name: 'Fendoir', desc: '+8 % de critique', mods: { critChance: 0.08 } },
+        {
+          id: 'bz-c3',
+          name: 'Coup de grâce',
+          desc: 'Achève les ennemis sous 12 % PV (hors boss)',
+          flag: 'execute',
+        },
+      ],
+    },
+    {
+      name: 'Rage',
+      nodes: [
+        { id: 'bz-r1', name: 'Bile', desc: '+30 % de rage gagnée', mods: { rageGainPct: 0.3 } },
+        {
+          id: 'bz-r2',
+          name: 'Colère froide',
+          desc: 'La rage décroît deux fois moins vite',
+          mods: { rageDecayReduction: 0.5 },
+        },
+        {
+          id: 'bz-r3',
+          name: 'Sans fin',
+          desc: 'Chaque kill en Frénésie la prolonge de 1 s',
+          flag: 'endlessFrenzy',
+        },
+      ],
+    },
+    {
+      name: 'Bond',
+      nodes: [
+        {
+          id: 'bz-b1',
+          name: 'Jarrets',
+          desc: 'Bond : −20 % de recharge',
+          mods: { dashRechargePct: 0.2 },
+        },
+        { id: 'bz-b2', name: 'Rebond', desc: '+1 charge de Bond', mods: { extraDashCharges: 1 } },
+        {
+          id: 'bz-b3',
+          name: 'Impact',
+          desc: 'L’atterrissage du Bond étourdit',
+          flag: 'leapStun',
         },
       ],
     },

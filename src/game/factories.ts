@@ -1,7 +1,8 @@
-import { CLASSES, SHADOW_BLADE, type ClassId } from '../data/classes';
+import { CLASSES, SHADOW_BLADE, SUMMONER, type ClassId } from '../data/classes';
 import type { StatusApplication } from '../data/statuses';
 import { emptyMods } from '../data/mods';
-import { LOOT } from '../data/items';
+import { LOOT, RELICS, type RelicId } from '../data/items';
+import { NO_BONUSES } from '../data/meta';
 import { difficultyFor } from '../data/dungeon';
 import { ELITE, ELITE_MODIFIERS, type EliteModifierId } from '../data/elites';
 import { enemyDef, type EnemyId } from '../data/enemies';
@@ -16,7 +17,7 @@ import {
 import type { Entity } from '../ecs/world';
 import type { Sim } from './sim';
 
-function newCharacter(classId: ClassId): Character {
+export function newCharacter(classId: ClassId): Character {
   const def = CLASSES[classId];
   return {
     classId,
@@ -34,6 +35,10 @@ function newCharacter(classId: ClassId): Character {
       blockTicks: -1,
       boltCount: 0,
       meteors: null,
+      rage: 0,
+      rageIdle: 0,
+      frenzy: 0,
+      spin: 0,
     },
     health: { hp: def.maxHp, max: def.maxHp, shield: 0, sinceHit: 9999, invuln: 0, stagger: 0 },
     dash: { charges: def.dash.maxCharges, recharge: 0, active: 0, dirX: 1, dirY: 0 },
@@ -93,6 +98,8 @@ export function spawnPlayer(sim: Sim, party: readonly ClassId[], x: number, y: n
     quick: Array.from({ length: LOOT.quickSlots }, () => null),
     relics: [],
     phoenixUsed: false,
+    bonuses: { ...NO_BONUSES },
+    relicPool: Object.keys(RELICS) as RelicId[],
   });
   w.add(e, 'player', first.state);
   w.add(e, 'health', first.health);
@@ -228,7 +235,7 @@ export interface PlayerProjectileSpec {
   knockback: number;
   pierce: number;
   stagger: number;
-  kind: 'shuriken' | 'arcaneBolt' | 'frostOrb';
+  kind: 'shuriken' | 'arcaneBolt' | 'frostOrb' | 'axe';
   burst?: BurstSpec;
   statuses?: readonly StatusApplication[];
 }
@@ -391,4 +398,48 @@ export function spawnSmoke(
   ticks: number,
 ): Entity {
   return spawnZone(sim, 'smoke', owner, x, y, radius, ticks);
+}
+
+/** Invocateur summons: allied bodies that fight on their own (see systems/allies). */
+export function spawnAlly(
+  sim: Sim,
+  kind: 'wisp' | 'colossus',
+  x: number,
+  y: number,
+  opts: { lifePct: number; damagePct: number },
+): Entity {
+  const w = sim.world;
+  const def = kind === 'wisp' ? SUMMONER.wisp : SUMMONER.colossus;
+  const e = w.create();
+  const life = Math.round(def.lifeTicks * (1 + opts.lifePct));
+  w.add(e, 'transform', transformAt(x, y));
+  w.add(e, 'velocity', { x: 0, y: 0 });
+  w.add(e, 'impulse', { x: 0, y: 0 });
+  w.add(e, 'body', { radius: def.radius, solid: true, pushable: true, weight: def.weight });
+  w.add(e, 'facing', { angle: sim.rng.combat.range(-Math.PI, Math.PI) });
+  w.add(e, 'team', 'player');
+  w.add(e, 'health', {
+    hp: def.maxHp,
+    max: def.maxHp,
+    shield: 0,
+    sinceHit: 9999,
+    invuln: 10,
+    stagger: 0,
+  });
+  w.add(e, 'statuses', { list: [] });
+  w.add(e, 'mover', { ...def.mover });
+  w.add(e, 'ally', {
+    kind,
+    life,
+    maxLife: life,
+    cooldown: sim.rng.combat.int(0, 20),
+    windup: -1,
+    target: null,
+    rush: 0,
+    lost: 0,
+    damageMult: 1 + opts.damagePct,
+  });
+  w.add(e, 'renderable', { kind });
+  sim.events.push({ type: 'allySummon', kind, x, y });
+  return e;
 }

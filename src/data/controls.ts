@@ -12,7 +12,7 @@ export const KEY_BINDINGS = {
   ranged: ['Mouse2', 'KeyK'],
   dash: ['Space', 'ShiftLeft'],
   skill: ['KeyQ'],
-  /** Reserved for interactions (chests, altars, shop) in M6. */
+  /** Chests, shop, altar. */
   interact: ['KeyE'],
   ultimate: ['KeyR'],
   quick1: ['KeyF'],
@@ -25,6 +25,7 @@ export const KEY_BINDINGS = {
   mute: ['KeyM'],
   map: ['Tab'],
   progress: ['KeyC'],
+  pause: ['Escape'],
   toggleDebug: ['F3'],
   toggleHitboxes: ['F4'],
 } as const satisfies Record<string, readonly string[]>;

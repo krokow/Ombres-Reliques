@@ -946,3 +946,290 @@ export function drawBossCrown(
   ctx.fill();
   ctx.restore();
 }
+
+/** Invocateur: tattered robe, a lantern staff and soul motes swirling around. */
+export function drawSummoner(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: BladeLook,
+  opts: { flash: boolean; time: number; alpha: number; swing: SwingPose | null; souls: number },
+): void {
+  ctx.save();
+  ctx.globalAlpha = opts.alpha;
+  const c = (col: string): string => (opts.flash ? '#ffffff' : col);
+  // Soul motes orbit in world orientation (they don't turn with the body).
+  for (let i = 0; i < 4; i++) {
+    const a = opts.time * 1.8 + (i * Math.PI) / 2;
+    const rr = r * (1.5 + Math.sin(opts.time * 3 + i) * 0.15);
+    ctx.fillStyle = look.trim;
+    ctx.globalAlpha = opts.alpha * (0.25 + Math.min(1, opts.souls / 4) * 0.55);
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr * 0.7 - r * 0.2, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = opts.alpha;
+  ctx.rotate(facing);
+  // Ragged robe: a jagged hem trailing behind.
+  ctx.fillStyle = c(look.body);
+  ctx.beginPath();
+  ctx.moveTo(r * 0.9, 0);
+  ctx.quadraticCurveTo(r * 0.3, -r * 1.2, -r * 0.9, -r * 0.95);
+  for (let i = 0; i <= 4; i++) {
+    const k = i / 4;
+    const jag = i % 2 === 0 ? -r * 1.35 : -r * 1.05;
+    ctx.lineTo(jag + Math.sin(opts.time * 6 + i) * 1.5, -r * 0.95 + k * r * 1.9);
+  }
+  ctx.quadraticCurveTo(r * 0.3, r * 1.2, r * 0.9, 0);
+  ctx.fill();
+  ctx.strokeStyle = c(look.trim);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Deep hood with two pale eyes.
+  ctx.fillStyle = c('#0c1512');
+  ctx.beginPath();
+  ctx.arc(r * 0.15, 0, r * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = look.eyes;
+  ctx.shadowColor = look.trim;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(r * 0.45, -r * 0.2, r * 0.1, 0, Math.PI * 2);
+  ctx.arc(r * 0.45, r * 0.2, r * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Lash hand: a ghostly chain cracks forward during the swing.
+  if (opts.swing && opts.swing.phase !== 'recovery') {
+    const ext = opts.swing.phase === 'active' ? 1 : opts.swing.t * 0.3;
+    ctx.strokeStyle = look.trim;
+    ctx.globalAlpha = opts.alpha * 0.8;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.6, -r * 0.6);
+    const len = r * 1 + ext * r * 8;
+    for (let k = 1; k <= 6; k++) {
+      const x = r * 0.6 + (len * k) / 6;
+      ctx.lineTo(x, -r * 0.6 + Math.sin(k * 1.7 + opts.time * 30) * 3 * ext);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = opts.alpha;
+  }
+  // Lantern staff in the other hand.
+  ctx.save();
+  ctx.translate(r * 0.25, r * 0.95);
+  ctx.rotate(-0.25);
+  ctx.strokeStyle = '#4b3a2a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.6, 0);
+  ctx.lineTo(r * 1.15, 0);
+  ctx.stroke();
+  const flicker = 0.7 + Math.sin(opts.time * 13) * 0.15;
+  ctx.fillStyle = look.trim;
+  ctx.shadowColor = look.trim;
+  ctx.shadowBlur = 10 * flicker;
+  ctx.fillRect(r * 1.1, -r * 0.28, r * 0.5, r * 0.56);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = c('#2a2a2a');
+  ctx.lineWidth = 1;
+  ctx.strokeRect(r * 1.1, -r * 0.28, r * 0.5, r * 0.56);
+  ctx.restore();
+  ctx.restore();
+}
+
+/** Berserker: heavy frame, fur mantle, two axes; glows hotter with rage. */
+export function drawBerserker(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  look: BladeLook,
+  opts: {
+    flash: boolean;
+    time: number;
+    alpha: number;
+    swing: SwingPose | null;
+    rage: number;
+    spinning: boolean;
+    frenzy: boolean;
+  },
+): void {
+  ctx.save();
+  ctx.globalAlpha = opts.alpha;
+  const c = (col: string): string => (opts.flash ? '#ffffff' : col);
+  // Rage aura: grows and pulses with rage, flickers in frenzy.
+  if (opts.rage > 0.15 || opts.frenzy) {
+    const k = opts.frenzy ? 1 : opts.rage;
+    ctx.globalAlpha =
+      opts.alpha * (0.15 + k * 0.35) * (0.8 + Math.sin(opts.time * (opts.frenzy ? 22 : 8)) * 0.2);
+    ctx.fillStyle = opts.frenzy ? '#ff2a1a' : look.trim;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * (1.3 + k * 0.5), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = opts.alpha;
+  }
+  const spinAngle = opts.spinning ? opts.time * 26 : 0;
+  ctx.rotate(facing + spinAngle);
+  const drawAxe = (side: number, angle: number): void => {
+    ctx.save();
+    ctx.translate(r * 0.25, side * r * 0.85);
+    ctx.rotate(angle * side);
+    ctx.strokeStyle = '#5b4030';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(r * 1.25, 0);
+    ctx.stroke();
+    ctx.fillStyle = c('#c9ccd6');
+    ctx.beginPath();
+    ctx.moveTo(r * 1.0, 0);
+    ctx.quadraticCurveTo(r * 1.25, -side * r * 0.75, r * 1.55, -side * r * 0.55);
+    ctx.lineTo(r * 1.45, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+  // Both axes swing: the lead one follows the combo pose.
+  const lead = opts.swing && opts.swing.index % 2 === 1 ? -1 : 1;
+  const sw = opts.swing ? swingAngle(opts.swing, 1.5, 1.4) : 0;
+  const rest = opts.spinning ? 1.4 : 0.5;
+  drawAxe(1, lead === 1 && opts.swing ? -sw : rest);
+  drawAxe(-1, lead === -1 && opts.swing ? -sw : rest);
+  // Body and fur mantle.
+  ctx.fillStyle = c(look.body);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = c(look.trim);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = c('#6b5442');
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * 0.55 + (i / 6) * Math.PI * 0.9;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8, r * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Helm with short horns.
+  ctx.fillStyle = c('#3a3a42');
+  ctx.beginPath();
+  ctx.arc(r * 0.2, 0, r * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = c('#e8dcc0');
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.1, side * r * 0.45);
+    ctx.quadraticCurveTo(-r * 0.2, side * r * 1.0, r * 0.25, side * r * 1.15);
+    ctx.lineTo(r * 0.3, side * r * 0.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = opts.rage > 0.6 || opts.frenzy ? '#ff3a1a' : look.eyes;
+  ctx.shadowColor = ctx.fillStyle;
+  ctx.shadowBlur = 4 + opts.rage * 8;
+  ctx.fillRect(r * 0.48, -r * 0.25, r * 0.18, r * 0.12);
+  ctx.fillRect(r * 0.48, r * 0.13, r * 0.18, r * 0.12);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** Wisp: a teal flame with a flickering tail, brighter while rushing. */
+export function drawWisp(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  opts: { flash: boolean; time: number; life: number; rush: boolean; windup: number; seed: number },
+): void {
+  ctx.save();
+  // Fades out during its last second.
+  ctx.globalAlpha = Math.min(1, opts.life * 6);
+  const flick = Math.sin(opts.time * 18 + opts.seed) * 0.15;
+  ctx.rotate(facing);
+  ctx.fillStyle = opts.rush ? 'rgba(255, 240, 160, 0.35)' : 'rgba(92, 255, 196, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 1.2, 0, r * 2, r * (0.7 + flick), 0, 0, Math.PI * 2);
+  ctx.fill();
+  const grow = 1 + opts.windup * 0.4;
+  ctx.fillStyle = opts.flash ? '#ffffff' : opts.rush ? '#fff0a0' : '#5cffc4';
+  ctx.shadowColor = ctx.fillStyle;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * grow * (1 + flick * 0.5), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#0c1512';
+  ctx.fillRect(r * 0.15, -r * 0.4, r * 0.3, r * 0.22);
+  ctx.fillRect(r * 0.15, r * 0.18, r * 0.3, r * 0.22);
+  ctx.restore();
+}
+
+/** Bone colossus: a hulking ribcage with a skull, fists raised when slamming. */
+export function drawColossus(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  facing: number,
+  opts: { flash: boolean; time: number; life: number; windup: number },
+): void {
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, opts.life * 4);
+  const c = (col: string): string => (opts.flash ? '#ffffff' : col);
+  ctx.fillStyle = 'rgba(92, 255, 196, 0.12)';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.5 + Math.sin(opts.time * 4) * 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.rotate(facing);
+  // Fists: pulled back up during the wind-up, then slammed.
+  const lift = opts.windup;
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = c('#d8d0bc');
+    ctx.beginPath();
+    ctx.arc(r * (0.7 - lift * 0.5), side * r * (1.0 + lift * 0.2), r * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = c('#2a3a34');
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = c('#e8e0cc');
+  ctx.lineWidth = 2.5;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.arc(-r * 0.1, i * r * 0.28, r * 0.7, -1.1, 1.1);
+    ctx.stroke();
+  }
+  ctx.fillStyle = c('#efe8d4');
+  ctx.beginPath();
+  ctx.arc(r * 0.55, 0, r * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#5cffc4';
+  ctx.shadowColor = '#5cffc4';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(r * 0.62, -r * 0.2, r * 0.14, r * 0.12);
+  ctx.fillRect(r * 0.62, r * 0.08, r * 0.14, r * 0.12);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+export function drawThrownAxe(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  time: number,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(time * 22);
+  ctx.strokeStyle = '#5b4030';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-7, 0);
+  ctx.lineTo(7, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#d6d9e2';
+  ctx.beginPath();
+  ctx.moveTo(4, 0);
+  ctx.quadraticCurveTo(7, -7, 10, -5);
+  ctx.lineTo(9, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}

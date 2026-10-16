@@ -2,7 +2,9 @@ import { Sfx } from './audio/sfx';
 import { FixedStepClock, FpsCounter, runLoop } from './core/loop';
 import { lerp, normalize } from './core/math';
 import { normalizeSeed, seedFromNumber } from './core/rng';
-import { classDef } from './data/classes';
+import { classDef, isClassId, type ClassId } from './data/classes';
+import { NO_BONUSES } from './data/meta';
+import { TEAM } from './data/team';
 import { ENGINE } from './data/config';
 import { ELITE_MODIFIERS, type EliteModifierId } from './data/elites';
 import { ENEMIES, isEnemyId, type EnemyId } from './data/enemies';
@@ -27,6 +29,19 @@ import { CommandRegistry } from './ui/commands';
 import { DebugOverlay } from './ui/debugOverlay';
 import { ProgressPanel } from './ui/progressPanel';
 import { AltarPanel, ComparePanel } from './ui/lootPanels';
+import { Menus } from './ui/menus';
+import { browserStore, SaveManager } from './save/save';
+import {
+  allRelics,
+  buy,
+  dailyChallenge,
+  recordRun,
+  relicPool,
+  runBonuses,
+  type RunRecord,
+} from './save/meta';
+import { UNLOCKS } from './data/meta';
+import type { GameOptions } from './game/game';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const uiRoot = document.querySelector<HTMLElement>('#ui');
@@ -37,9 +52,10 @@ function randomSeed(): string {
   return seedFromNumber(crypto.getRandomValues(new Uint32Array(1))[0] ?? 0);
 }
 
-function initialSeed(): string {
-  const fromUrl = new URLSearchParams(location.search).get('seed');
-  return fromUrl ? normalizeSeed(fromUrl) : randomSeed();
+/** Local date (YYYY-MM-DD): the daily challenge follows the player's calendar day. */
+function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const clock = new FixedStepClock(ENGINE.tickRate, ENGINE.maxStepsPerFrame);
@@ -50,6 +66,8 @@ const input = new KeyboardMouse(canvas);
 const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
+const saves = new SaveManager(browserStore());
+if (saves.data.settings.muted) sfx.toggleMute();
 const progressPanel = new ProgressPanel(uiRoot);
 const comparePanel = new ComparePanel(uiRoot);
 const altarPanel = new AltarPanel(uiRoot);
@@ -57,16 +75,120 @@ let anim = new Animator();
 const commands = new CommandRegistry();
 const debug = new DebugOverlay(uiRoot, commands);
 let fx = new Effects();
-let game = newGame(initialSeed());
 
-function newGame(seed: string, mode: 'dungeon' | 'arena' = 'dungeon', startLevel = 1): Game {
-  const g = new Game(normalizeSeed(seed), clock.stepSeconds, { mode, startLevel });
+/** Current run. Null on the title screen. */
+let game: Game | null = null;
+let team: ClassId[] = [...TEAM.defaultParty];
+/** The run's rewards were banked (death, abandon, finished victory): nothing more to save. */
+let runEnded = false;
+
+const menus: Menus = new Menus(uiRoot, {
+  save: () => saves.data,
+  today,
+  continueRun: () => {
+    const snap = saves.data.run;
+    if (!snap) return;
+    launch(snap.seed, { restore: snap });
+  },
+  startRun: (picked, seed) => {
+    abandonSaved();
+    team = picked;
+    launch(seed ? normalizeSeed(seed) : randomSeed(), {
+      party: picked,
+      bonuses: runBonuses(saves.data.meta),
+      relicPool: relicPool(saves.data.meta),
+    });
+  },
+  startDaily: () => {
+    abandonSaved();
+    const d = dailyChallenge(today());
+    team = d.team;
+    // Fair for everyone: no permanent upgrades, every relic can drop.
+    launch(d.seed, { party: d.team, daily: true, bonuses: NO_BONUSES, relicPool: allRelics() });
+  },
+  buy: (p) => {
+    if (buy(saves.data.meta, p)) saves.write();
+  },
+  resume: () => menus.hide(),
+  quitToTitle: () => toTitle(),
+  abandon: () => endRun('abandon'),
+  finishVictory: () => endRun('victory'),
+  newRunSameTeam: (sameSeed) => {
+    const g = game;
+    if (g?.daily) return menus.current === 'end' ? menus.show('title') : undefined;
+    menus.hide();
+    const allowed = team.filter(isClassId);
+    launch(sameSeed && g ? g.seed : randomSeed(), {
+      party: allowed,
+      bonuses: runBonuses(saves.data.meta),
+      relicPool: relicPool(saves.data.meta),
+    });
+  },
+  wipeSave: () => {
+    saves.reset();
+    if (saves.data.settings.muted !== sfx.muted) sfx.toggleMute();
+  },
+});
+
+function launch(seed: string, opts: GameOptions, mode: 'dungeon' | 'arena' = 'dungeon'): Game {
+  if (game) progressPanel.setOpen(false, game);
+  const g = new Game(normalizeSeed(seed), clock.stepSeconds, { ...opts, mode });
+  team = g.world.req(g.player, 'party').members.map((m) => m.classId);
   const t = g.world.req(g.player, 'transform');
   camera.snapTo(t.x, t.y);
   fx = new Effects();
   anim = new Animator();
   game = g;
+  runEnded = mode === 'arena';
+  menus.hide();
+  persistRun();
   return g;
+}
+
+/** Writes the floor-start snapshot (design 2b: resume at the start of the floor). */
+function persistRun(): void {
+  if (!game || runEnded || !game.floorSnapshot) return;
+  saves.data.run = game.floorSnapshot;
+  saves.write();
+}
+
+/** Starting over while a run is saved banks it as abandoned (its progress still pays). */
+function abandonSaved(): void {
+  const snap = saves.data.run;
+  if (!snap) return;
+  recordRun(saves.data.meta, saves.data.history, {
+    seed: snap.seed,
+    daily: snap.daily,
+    date: today(),
+    team: snap.members.map((m) => m.classId),
+    stats: snap.stats,
+    outcome: 'abandon',
+  });
+  saves.data.run = null;
+  saves.write();
+}
+
+function endRun(outcome: RunRecord['outcome']): void {
+  const g = game;
+  if (!g || runEnded) return;
+  runEnded = true;
+  const record = recordRun(saves.data.meta, saves.data.history, {
+    seed: g.seed,
+    daily: g.daily,
+    date: today(),
+    team: g.world.req(g.player, 'party').members.map((m) => m.classId),
+    stats: g.stats,
+    outcome,
+  });
+  saves.data.run = null;
+  saves.write();
+  menus.showEnd({ record, stats: { ...g.stats } });
+}
+
+function toTitle(): void {
+  if (game) progressPanel.setOpen(false, game);
+  game = null;
+  menus.show('title');
 }
 
 /** Case-insensitive lookup so "bonearcher" works in the console. */
@@ -75,158 +197,158 @@ function resolveEnemyId(raw: string): EnemyId | null {
   return id && isEnemyId(id) ? id : null;
 }
 
+/** Debug runs reuse the current team and meta. */
+function newGame(seed: string, mode: 'dungeon' | 'arena' = 'dungeon', startLevel = 1): Game {
+  return launch(
+    seed,
+    {
+      party: team,
+      startLevel,
+      bonuses: runBonuses(saves.data.meta),
+      relicPool: relicPool(saves.data.meta),
+    },
+    mode,
+  );
+}
+
 function registerCommands(): void {
-  const heal = (): string => {
-    const h = game.world.req(game.player, 'health');
+  /** Commands that need a run in progress. */
+  const reg = (name: string, help: string, run: (g: Game, args: string[]) => string): void =>
+    commands.register(name, {
+      help,
+      run: (args) => (game ? run(game, args) : 'Pas de run en cours'),
+    });
+
+  reg('seed', 'seed [valeur] — affiche le seed, ou relance avec un nouveau', (g, [value]) => {
+    if (!value) return `Seed : ${g.seed}`;
+    return `Nouvelle partie, seed ${newGame(value).seed}`;
+  });
+  reg('restart', 'relance avec le même seed', (g) => `Relancé (seed ${newGame(g.seed).seed})`);
+  reg('heal', 'soigne complètement', (g) => {
+    const h = g.world.req(g.player, 'health');
     h.hp = h.max;
     return 'PV restaurés';
-  };
-  commands.register('seed', {
-    help: 'seed [valeur] — affiche le seed, ou relance avec un nouveau',
-    run: ([value]) => {
-      if (!value) return `Seed : ${game.seed}`;
-      newGame(value);
-      return `Nouvelle partie, seed ${game.seed}`;
-    },
   });
-  commands.register('restart', {
-    help: 'relance avec le même seed',
-    run: () => (newGame(game.seed), `Relancé (seed ${game.seed})`),
+  reg(
+    'god',
+    'invincibilité on/off',
+    (g) => ((g.godMode = !g.godMode), `God mode ${g.godMode ? 'ON' : 'OFF'}`),
+  );
+  reg('spawn', `spawn <${Object.keys(ENEMIES).join('|')}> [n]`, (g, [raw = 'ghoul', n = '1']) => {
+    const id = resolveEnemyId(raw);
+    if (!id) return `Ennemi inconnu : ${raw}`;
+    return `${spawnGroup(g, id, Math.max(1, Number(n) || 1))} ${ENEMIES[id].name}(s) invoquée(s)`;
   });
-  commands.register('heal', { help: 'soigne complètement', run: heal });
-  commands.register('god', {
-    help: 'invincibilité on/off',
-    run: () => ((game.godMode = !game.godMode), `God mode ${game.godMode ? 'ON' : 'OFF'}`),
-  });
-  commands.register('spawn', {
-    help: `spawn <${Object.keys(ENEMIES).join('|')}> [n]`,
-    run: ([raw = 'ghoul', n = '1']) => {
-      const id = resolveEnemyId(raw);
-      if (!id) return `Ennemi inconnu : ${raw}`;
-      return `${spawnGroup(game, id, Math.max(1, Number(n) || 1))} ${ENEMIES[id].name}(s) invoquée(s)`;
-    },
-  });
-  commands.register('elite', {
-    help: `elite <ennemi> [${Object.keys(ELITE_MODIFIERS).join('|')}] — invoque une élite`,
-    run: ([raw = 'ghoul', mod]) => {
+  reg(
+    'elite',
+    `elite <ennemi> [${Object.keys(ELITE_MODIFIERS).join('|')}] — invoque une élite`,
+    (g, [raw = 'ghoul', mod]) => {
       const id = resolveEnemyId(raw);
       if (!id) return `Ennemi inconnu : ${raw}`;
       const mods = Object.keys(ELITE_MODIFIERS) as EliteModifierId[];
       const chosen =
-        mod && (mods as string[]).includes(mod)
-          ? (mod as EliteModifierId)
-          : game.rng.spawn.pick(mods);
-      spawnGroup(game, id, 1, { elite: [chosen] });
+        mod && (mods as string[]).includes(mod) ? (mod as EliteModifierId) : g.rng.spawn.pick(mods);
+      spawnGroup(g, id, 1, { elite: [chosen] });
       return `${ENEMIES[id].name} ${ELITE_MODIFIERS[chosen].name} invoquée`;
     },
+  );
+  reg('ult', 'remplit l’énergie (ultime prêt)', (g) => {
+    const p = g.world.req(g.player, 'player');
+    p.energy = classDef(p.classId).maxEnergy;
+    return 'Énergie au max';
   });
-  commands.register('ult', {
-    help: 'remplit l’énergie (Exécution prête)',
-    run: () => {
-      const p = game.world.req(game.player, 'player');
-      p.energy = classDef(p.classId).maxEnergy;
-      return 'Énergie au max';
-    },
-  });
-  commands.register('status', {
-    help: `status <${Object.keys(STATUSES).join('|')}> [ticks] — s'applique un statut`,
-    run: ([id = '', ticks = '180']) => {
+  reg(
+    'status',
+    `status <${Object.keys(STATUSES).join('|')}> [ticks] — s'applique un statut`,
+    (g, [id = '', ticks = '180']) => {
       if (!Object.hasOwn(STATUSES, id)) return `Statut inconnu : ${id}`;
-      applyStatus(game, game.player, id as StatusId, Number(ticks) || 180);
+      applyStatus(g, g.player, id as StatusId, Number(ticks) || 180);
       return `Statut ${id} appliqué`;
     },
+  );
+  reg('next', 'passe à l’étage suivant', (g) => {
+    if (!g.dungeon) return 'Pas en mode donjon';
+    g.descend();
+    return `Étage ${g.level}`;
   });
-  commands.register('next', {
-    help: 'passe à l’étage suivant',
-    run: () => {
-      if (!game.dungeon) return 'Pas en mode donjon';
-      game.descend();
-      return `Étage ${game.level}`;
-    },
+  reg('floor', 'floor <n> — relance la run à l’étage n (même seed)', (g, [n = '1']) => {
+    return `Étage ${newGame(g.seed, 'dungeon', Math.max(1, Number(n) || 1)).level}`;
   });
-  commands.register('floor', {
-    help: 'floor <n> — relance la run à l’étage n (même seed)',
-    run: ([n = '1']) => {
-      newGame(game.seed, 'dungeon', Math.max(1, Number(n) || 1));
-      return `Étage ${game.level}`;
-    },
+  reg('reveal', 'révèle la carte', (g) => {
+    if (!g.dungeon) return 'Pas en mode donjon';
+    revealAll(g.dungeon);
+    return 'Carte révélée';
   });
-  commands.register('reveal', {
-    help: 'révèle la carte',
-    run: () => {
-      if (!game.dungeon) return 'Pas en mode donjon';
-      revealAll(game.dungeon);
-      return 'Carte révélée';
-    },
-  });
-  commands.register('tp', {
-    help: 'tp <start|combat|treasure|shop|altar|secret|miniboss|boss> — téléporte dans la salle',
-    run: ([type = 'boss']) => {
-      const room = game.dungeon?.floor.rooms.find((r) => r.type === type);
+  reg(
+    'tp',
+    'tp <start|combat|treasure|shop|altar|secret|miniboss|boss> — téléporte dans la salle',
+    (g, [type = 'boss']) => {
+      const room = g.dungeon?.floor.rooms.find((r) => r.type === type);
       if (!room) return `Aucune salle ${type}`;
-      const c = game.map.tileCenter(room.center.tx, room.center.ty);
-      const t = game.world.req(game.player, 'transform');
+      const c = g.map.tileCenter(room.center.tx, room.center.ty);
+      const t = g.world.req(g.player, 'transform');
       t.x = t.prevX = c.x;
       t.y = t.prevY = c.y;
       camera.snapTo(c.x, c.y);
       return `Téléporté : ${type}`;
     },
-  });
+  );
   commands.register('arena', {
     help: 'arène de test (vagues infinies)',
-    run: () => (newGame(game.seed, 'arena'), 'Arène'),
+    run: () => (newGame(game?.seed ?? randomSeed(), 'arena'), 'Arène'),
   });
-  commands.register('ko', {
-    help: 'met le personnage actif KO (test du relais)',
-    run: () => {
-      const h = game.world.req(game.player, 'health');
-      h.invuln = 0;
-      h.shield = 0;
-      dealDamage(game, game.player, {
-        amount: 99999,
-        source: null,
-        byPlayer: false,
-        crit: false,
-        backstab: false,
-        dirX: 0,
-        dirY: 0,
-        knockback: 0,
-        stagger: 0,
-        dot: false,
-        originX: 0,
-        originY: 0,
-      });
-      return 'KO';
+  reg('ko', 'met le personnage actif KO (test du relais)', (g) => {
+    const h = g.world.req(g.player, 'health');
+    h.invuln = 0;
+    h.shield = 0;
+    dealDamage(g, g.player, {
+      amount: 99999,
+      source: null,
+      byPlayer: false,
+      crit: false,
+      backstab: false,
+      dirX: 0,
+      dirY: 0,
+      knockback: 0,
+      stagger: 0,
+      dot: false,
+      originX: 0,
+      originY: 0,
+    });
+    return 'KO';
+  });
+  reg('revive', 'réanime les personnages KO', (g) => `${reviveAll(g, 1).length} réanimé(s)`);
+  reg('xp', 'xp <n> — donne de l’XP au personnage actif', (g, [n = '200']) => {
+    const party = g.world.req(g.player, 'party');
+    const m = party.members[party.active];
+    if (!m) return 'Aucun personnage';
+    addXp(g, m, Math.max(0, Number(n) || 0));
+    return `Niveau ${m.progress.level}, ${m.progress.pendingCards} choix en attente`;
+  });
+  reg('killall', 'détruit tous les ennemis', (g) => {
+    const enemies = g.world.query('enemy');
+    for (const [e] of enemies) g.world.destroy(e);
+    return `${enemies.length} ennemi(s) détruit(s)`;
+  });
+  reg('dash', 'recharge les dashs', (g) => {
+    const d = g.world.req(g.player, 'dash');
+    d.charges = classDef(g.world.req(g.player, 'player').classId).dash.maxCharges;
+    return 'Dashs rechargés';
+  });
+  commands.register('shards', {
+    help: 'shards <n> — ajoute des Éclats (méta)',
+    run: ([n = '100']) => {
+      saves.data.meta.shards += Math.max(0, Number(n) || 0);
+      saves.write();
+      return `${saves.data.meta.shards} Éclats`;
     },
   });
-  commands.register('revive', {
-    help: 'réanime les personnages KO',
-    run: () => `${reviveAll(game, 1).length} réanimé(s)`,
-  });
-  commands.register('xp', {
-    help: 'xp <n> — donne de l’XP au personnage actif',
-    run: ([n = '200']) => {
-      const party = game.world.req(game.player, 'party');
-      const m = party.members[party.active];
-      if (!m) return 'Aucun personnage';
-      addXp(game, m, Math.max(0, Number(n) || 0));
-      return `Niveau ${m.progress.level}, ${m.progress.pendingCards} choix en attente`;
-    },
-  });
-  commands.register('killall', {
-    help: 'détruit tous les ennemis',
+  commands.register('unlockall', {
+    help: 'débloque classes et reliquaires',
     run: () => {
-      const enemies = game.world.query('enemy');
-      for (const [e] of enemies) game.world.destroy(e);
-      return `${enemies.length} ennemi(s) détruit(s)`;
-    },
-  });
-  commands.register('dash', {
-    help: 'recharge les dashs',
-    run: () => {
-      const d = game.world.req(game.player, 'dash');
-      d.charges = classDef(game.world.req(game.player, 'player').classId).dash.maxCharges;
-      return 'Dashs rechargés';
+      saves.data.meta.unlocked = UNLOCKS.map((u) => u.id);
+      saves.write();
+      return 'Tout est débloqué';
     },
   });
 }
@@ -264,17 +386,23 @@ function sampleInput(): InputFrame {
   };
 }
 
-function handleMetaKeys(): void {
+function handleMetaKeys(g: Game | null): void {
   if (input.consumePressed('toggleDebug')) debug.toggle();
   if (input.consumePressed('toggleHitboxes')) debug.showHitboxes = !debug.showHitboxes;
+  if (input.consumePressed('mute')) {
+    saves.data.settings.muted = sfx.toggleMute();
+    saves.write();
+    debug.print(sfx.muted ? 'Son coupé' : 'Son activé');
+  }
+  // Menus and the console take the keyboard (seed field, Escape…).
+  input.suspended = debug.consoleOpen || menus.pausesGame;
+  if (!g || input.suspended) return;
   if (input.consumePressed('map')) minimap.expanded = !minimap.expanded;
-  if (input.consumePressed('progress')) progressPanel.toggle(game);
-  if (input.consumePressed('mute')) debug.print(sfx.toggleMute() ? 'Son coupé' : 'Son activé');
-  input.suspended = debug.consoleOpen;
-  const won = game.dungeon?.victory === true;
-  if (!game.playerAlive || won) {
-    if (input.consumePressed('confirm')) newGame(randomSeed());
-    else if (input.consumePressed('retrySameSeed')) newGame(game.seed);
+  if (input.consumePressed('progress')) progressPanel.toggle(g);
+  if (input.consumePressed('pause') && g.playerAlive && !runEnded) menus.show('pause');
+  // Arena (debug) runs aren't recorded: restart straight away.
+  if (!g.playerAlive && g.mode === 'arena') {
+    if (input.consumePressed('confirm')) newGame(g.seed, 'arena');
   }
 }
 
@@ -289,64 +417,94 @@ let ghostTimer = 0;
 
 runLoop(clock, {
   update() {
-    handleMetaKeys();
+    handleMetaKeys(game);
+    const g = game;
+    if (!g || menus.pausesGame) {
+      input.clearEdges();
+      return;
+    }
     const aim = camera.screenToWorld(input.mouseX, input.mouseY);
-    game.step(input.suspended ? { ...emptyInput(), aimX: aim.x, aimY: aim.y } : sampleInput());
+    g.step(input.suspended ? { ...emptyInput(), aimX: aim.x, aimY: aim.y } : sampleInput());
   },
   render(alpha, frameMs) {
-    handleMetaKeys();
+    handleMetaKeys(game);
+    const g = game;
     const dt = Math.min(frameMs, 100) / 1000;
     fps.frame(frameMs);
-    for (const ev of game.drainEvents()) {
+    if (!g) {
+      renderer.screenSpace();
+      renderer.ctx.fillStyle = '#07060b';
+      renderer.ctx.fillRect(0, 0, renderer.width, renderer.height);
+      return;
+    }
+    for (const ev of g.drainEvents()) {
       if (ev.type === 'floor') {
-        const pt = game.world.req(game.player, 'transform');
+        const pt = g.world.req(g.player, 'transform');
         camera.snapTo(pt.x, pt.y);
+        persistRun();
       }
       // Design 1b: choices wait; a cleared room is a natural moment to offer them.
       if (ev.type === 'roomCleared' && !progressPanel.open) {
-        const pending = game.world
-          .req(game.player, 'party')
+        const pending = g.world
+          .req(g.player, 'party')
           .members.some((m) => m.progress.pendingCards > 0);
-        if (pending) progressPanel.setOpen(true, game);
+        if (pending) progressPanel.setOpen(true, g);
       }
       if (ev.type === 'altarOpen') altarPanel.show(ev.altar, ev.options);
+      if (ev.type === 'victory' && !runEnded) menus.show('victory');
+      if (ev.type === 'playerDeath' && g.mode === 'dungeon') endRun('death');
       fx.handle(ev, camera);
-      anim.onEvent(ev, game);
+      anim.onEvent(ev, g);
       sfx.onEvent(ev);
     }
+    if (game !== g) return;
 
-    const w = game.world;
-    const t = w.req(game.player, 'transform');
+    const w = g.world;
+    const t = w.req(g.player, 'transform');
     const px = lerp(t.prevX, t.x, alpha);
     const py = lerp(t.prevY, t.y, alpha);
     // Dash afterimages, emitted at a fixed rate regardless of FPS.
     ghostTimer -= dt;
-    if (w.req(game.player, 'dash').active > 0 && ghostTimer <= 0) {
-      fx.addGhost(px, py, w.req(game.player, 'facing').angle);
+    if (w.req(g.player, 'dash').active > 0 && ghostTimer <= 0) {
+      fx.addGhost(px, py, w.req(g.player, 'facing').angle);
       ghostTimer = 0.016;
     }
 
-    fx.update(dt);
-    anim.update(game, dt);
-    camera.follow({ x: px, y: py }, camera.screenToWorld(input.mouseX, input.mouseY), dt);
-    renderer.render(game, camera, fx, anim, alpha, dt, { showHitboxes: debug.showHitboxes });
+    // Paused: the world stays frozen behind the menu.
+    const frozen = menus.pausesGame;
+    const fdt = frozen ? 0 : dt;
+    fx.update(fdt);
+    anim.update(g, fdt);
+    camera.follow({ x: px, y: py }, camera.screenToWorld(input.mouseX, input.mouseY), fdt);
+    renderer.render(g, camera, fx, anim, alpha, fdt, { showHitboxes: debug.showHitboxes });
     renderer.screenSpace();
-    hud.draw(renderer.ctx, renderer.width, renderer.height, game, fx, dt);
-    progressPanel.update(game);
-    comparePanel.update(game);
-    altarPanel.update(game);
-    minimap.draw(renderer.ctx, renderer.width, renderer.height, game, performance.now() / 1000);
+    hud.draw(renderer.ctx, renderer.width, renderer.height, g, fx, fdt);
+    progressPanel.update(g);
+    comparePanel.update(g);
+    altarPanel.update(g);
+    minimap.draw(renderer.ctx, renderer.width, renderer.height, g, performance.now() / 1000);
 
     debug.setLines([
       `FPS      ${fps.fps.toFixed(0)}`,
-      `Tick     ${game.tick}${game.hitstopTicks > 0 ? '  (hit-stop)' : ''}`,
+      `Tick     ${g.tick}${g.hitstopTicks > 0 ? '  (hit-stop)' : ''}`,
       `Entités  ${w.entityCount}`,
-      `Seed     ${game.seed}`,
-      `Joueur   ${t.x.toFixed(0)}, ${t.y.toFixed(0)}${game.godMode ? '  GOD' : ''}`,
-      `Étage    ${game.level}${game.dungeon ? ` (essai ${game.dungeon.floor.attempt}, ${game.dungeon.floor.rooms.length} salles)` : ''}`,
+      `Seed     ${g.seed}${g.daily ? '  (défi du jour)' : ''}`,
+      `Joueur   ${t.x.toFixed(0)}, ${t.y.toFixed(0)}${g.godMode ? '  GOD' : ''}`,
+      `Étage    ${g.level}${g.dungeon ? ` (essai ${g.dungeon.floor.attempt}, ${g.dungeon.floor.rooms.length} salles)` : ''}`,
       ``,
       `ZQSD/WASD bouger · clic G/D attaques · Espace mobilité · 1/2/3 switch`,
-      `A (AZERTY)/Q compétence · R ultime · E interagir · Tab carte · M son`,
+      `A (AZERTY)/Q compétence · R ultime · E interagir · Tab carte · Échap pause`,
     ]);
   },
 });
+
+// Entry point: ?seed=XYZ jumps straight into a run (handy for sharing seeds), else the title.
+const urlSeed = new URLSearchParams(location.search).get('seed');
+if (urlSeed) {
+  const last = saves.data.history.find((r) => !r.daily)?.team;
+  if (last) team = last;
+  newGame(urlSeed);
+} else {
+  menus.setNotice(saves.notice);
+  menus.show('title');
+}

@@ -14,7 +14,9 @@ moteur maison (ECS + boucle à pas fixe), zéro asset externe.
 | `npm run lint`    | ESLint + vérification Prettier          |
 | `npm run format`  | formatage Prettier                      |
 
-`?seed=XXXX` dans l'URL force un seed.
+Le jeu s'ouvre sur l'écran titre : continuer la run sauvegardée, nouvelle run (choix de l'équipe et
+du seed), défi du jour, Sanctuaire (méta), historique, commandes. `?seed=XXXX` dans l'URL lance
+directement une run sur ce seed.
 
 ## Structure
 
@@ -29,25 +31,31 @@ src/
   input/    clavier/souris (→ InputFrame)
   render/   caméra, rendu Canvas 2D, effets visuels
   audio/    sons procéduraux Web Audio
-  ui/       overlay debug, console, HUD
-  save/     sauvegarde localStorage versionnée (M8)
+  ui/       menus (titre, équipe, Sanctuaire…), panneaux en jeu, overlay debug, console
+  save/     méta-progression et sauvegarde localStorage versionnée (migrations)
 tests/      Vitest
 docs/       DESIGN.md, ROADMAP.md
 ```
 
 ## Contrôles
 
-| Action                                   | Touche                                                      |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| Bouger                                   | ZQSD (AZERTY) / WASD (QWERTY) / flèches — touches physiques |
-| Viser                                    | souris                                                      |
-| Combo de mêlée                           | clic gauche (maintenir pour enchaîner)                      |
-| Shuriken                                 | clic droit                                                  |
-| Dash                                     | Espace                                                      |
-| Nouvelle run / même seed (après la mort) | Entrée / Retour arrière                                     |
-| Son on/off                               | M                                                           |
-| Overlay debug / hitboxes / console       | F3 / F4 / `²`                                               |
+| Action                                | Touche                                                      |
+| ------------------------------------- | ----------------------------------------------------------- |
+| Bouger                                | ZQSD (AZERTY) / WASD (QWERTY) / flèches — touches physiques |
+| Viser                                 | souris                                                      |
+| Attaque principale                    | clic gauche (maintenir pour enchaîner)                      |
+| Action secondaire                     | clic droit                                                  |
+| Mobilité (dash, charge, blink, bond…) | Espace                                                      |
+| Compétence / ultime                   | A (AZERTY) ou Q (QWERTY) / R                                |
+| Changer de héros                      | 1 / 2 / 3                                                   |
+| Interagir / consommables              | E / F, G                                                    |
+| Progression (cartes, talents) / carte | C / Tab                                                     |
+| Pause (retour au titre, abandon)      | Échap                                                       |
+| Nouvelle run / même seed (fin de run) | Entrée / Retour arrière                                     |
+| Son on/off                            | M                                                           |
+| Overlay debug / hitboxes / console    | F3 / F4 / `²`                                               |
 
 Commandes console : `help`, `heal`, `god`, `spawn <id ennemi> [n]` (ex. `spawn cryptarch`),
 `elite <ennemi> [enraged|armored|vampiric|volatile]`, `ult`, `status <id> [ticks]`, `killall`, `dash`,
-`seed [valeur]`, `restart`, `ko`, `revive`, `xp <n>`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`.
+`seed [valeur]`, `restart`, `ko`, `revive`, `xp <n>`, `next`, `floor <n>`, `reveal`, `tp <boss|miniboss|shop|…>`, `arena`,
+`shards <n>` (Éclats), `unlockall`.

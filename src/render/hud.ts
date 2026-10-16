@@ -1,5 +1,5 @@
 import { damp } from '../core/math';
-import { BIOMES, floorInBiome, FLOORS_PER_BIOME, loopOf, RUN_FLOORS } from '../data/biomes';
+import { BIOMES, floorInBiome, FLOORS_PER_BIOME, loopOf } from '../data/biomes';
 import { classDef, type ClassId } from '../data/classes';
 import { KEY_BINDINGS } from '../data/controls';
 import { STATUSES } from '../data/statuses';
@@ -90,6 +90,11 @@ export class Hud {
       ctx.fillRect(x, y + 21, barW, 4);
       ctx.fillStyle = '#5a8cff';
       ctx.fillRect(x, y + 21, Math.min(barW, (barW * player.mana) / def.maxMana), 4);
+    } else if (def.id === 'berserker') {
+      ctx.fillStyle = '#2a1010';
+      ctx.fillRect(x, y + 21, barW, 4);
+      ctx.fillStyle = player.frenzy > 0 ? '#ffd34d' : '#ff3a1a';
+      ctx.fillRect(x, y + 21, (barW * player.rage) / def.rage.max, 4);
     }
     ctx.textAlign = 'left';
     ctx.fillStyle = def.palette.trim;
@@ -102,7 +107,7 @@ export class Hud {
     // --- Skill slots, provided by the active kit.
     const slots = kitFor(player.classId).hud(game);
     const slot = 34;
-    const gap = 8;
+    const gap = 12;
     const sy = y - 22 - slot - 10;
     const sx0 = width / 2 - (slot * slots.length + gap * (slots.length - 1)) / 2;
     slots.forEach((sl, i) => {
@@ -232,23 +237,7 @@ export class Hud {
       ctx.globalAlpha = 1;
     }
 
-    if (game.dungeon?.victory && game.level === RUN_FLOORS && game.playerAlive) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(5,3,10,0.55)';
-      ctx.fillRect(0, height * 0.62, width, 56);
-      ctx.fillStyle = PALETTE.crit;
-      ctx.font = `bold 16px ${FONT}`;
-      ctx.fillText('Victoire ! Les reliques sont vôtres.', width / 2, height * 0.62 + 18);
-      ctx.fillStyle = PALETTE.hudText;
-      ctx.font = `12px ${FONT}`;
-      ctx.fillText(
-        'L’escalier mène au mode infini (les biomes reviennent, plus durs) · Entrée : nouvelle run',
-        width / 2,
-        height * 0.62 + 40,
-      );
-    }
-
+    // Death and victory details live in the end-of-run panel (DOM); the canvas only sets the mood.
     if (!game.playerAlive) {
       ctx.fillStyle = 'rgba(5,3,10,0.65)';
       ctx.fillRect(0, 0, width, height);
@@ -256,21 +245,7 @@ export class Hud {
       ctx.textBaseline = 'middle';
       ctx.fillStyle = PALETTE.hp;
       ctx.font = `bold 40px ${FONT}`;
-      ctx.fillText('L’équipe est tombée', width / 2, height / 2 - 30);
-      ctx.fillStyle = PALETTE.hudText;
-      ctx.font = `15px ${FONT}`;
-      const reached = game.dungeon ? `Étage ${game.level}` : `Vague ${game.waves.wave}`;
-      ctx.fillText(
-        `${reached} · ${party.kills} éliminations · seed ${game.seed}`,
-        width / 2,
-        height / 2 + 12,
-      );
-      ctx.fillStyle = PALETTE.hudDim;
-      ctx.fillText(
-        'Entrée : nouvelle run   ·   Retour arrière : même seed',
-        width / 2,
-        height / 2 + 40,
-      );
+      ctx.fillText('L’équipe est tombée', width / 2, height * 0.18);
     }
   }
 

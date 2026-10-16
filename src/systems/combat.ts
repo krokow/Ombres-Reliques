@@ -151,6 +151,15 @@ function applyHit(sim: Sim, hb: Hitbox, ox: number, oy: number, target: Entity):
   if (backstab && def?.id === 'shadowBlade' && w.isAlive(target) && !w.isPendingDestroy(target)) {
     applyStatus(sim, target, 'mark', def.passive.markTicks, hb.owner);
   }
+  // Invocateur: the lash marks what it hits, and summons focus marked enemies.
+  if (
+    def?.id === 'summoner' &&
+    hb.owner === sim.player &&
+    w.isAlive(target) &&
+    !w.isPendingDestroy(target)
+  ) {
+    applyStatus(sim, target, 'mark', def.lashMarkTicks, hb.owner);
+  }
 }
 
 /** Projectiles with a burst (frost orb) explode where they stop. */

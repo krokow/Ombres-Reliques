@@ -2,7 +2,7 @@ import { lerp } from '../core/math';
 import { Tile, type TileMap } from '../core/tilemap';
 import { hashString } from '../core/rng';
 import { BIOMES, type BiomeDef } from '../data/biomes';
-import { ARCANIST, CLASSES, GUARDIAN, SHADOW_BLADE } from '../data/classes';
+import { ARCANIST, BERSERKER, CLASSES, GUARDIAN, SHADOW_BLADE, SUMMONER } from '../data/classes';
 import { ELITE_MODIFIERS } from '../data/elites';
 import { enemyDef, type BossPattern } from '../data/enemies';
 import { STATUSES } from '../data/statuses';
@@ -40,6 +40,11 @@ import {
   drawShadowBlade,
   drawShuriken,
   drawSmoke,
+  drawSummoner,
+  drawBerserker,
+  drawWisp,
+  drawColossus,
+  drawThrownAxe,
 } from './sprites';
 
 export interface RenderOptions {
@@ -201,6 +206,7 @@ export class Renderer {
               this.time,
             );
           } else if (kind === 'frostOrb') drawFrostOrb(ctx, p.x, p.y, this.time);
+          else if (kind === 'axe') drawThrownAxe(ctx, p.x, p.y, this.time);
           else drawShuriken(ctx, p.x, p.y, 4, this.time);
         },
       });
@@ -257,6 +263,25 @@ export class Renderer {
 
     if (e === game.player) {
       this.drawPlayer(game, kind, radius, facing, flash);
+      ctx.restore();
+      return;
+    }
+
+    const ally = w.get(e, 'ally');
+    if (ally) {
+      const def = ally.kind === 'wisp' ? SUMMONER.wisp : SUMMONER.colossus;
+      const life = ally.life / 60;
+      const windup = ally.windup >= 0 ? ally.windup / def.windupTicks : 0;
+      if (ally.kind === 'wisp')
+        drawWisp(ctx, radius, facing, {
+          flash,
+          time: this.time,
+          life,
+          rush: ally.rush > 0,
+          windup,
+          seed: e,
+        });
+      else drawColossus(ctx, radius, facing, { flash, time: this.time, life, windup });
       ctx.restore();
       return;
     }
@@ -381,6 +406,24 @@ export class Renderer {
         cast: state.primaryCooldown / ARCANIST.bolt.cooldownTicks,
         channel: state.meteors !== null,
         mana: state.mana / ARCANIST.maxMana,
+      });
+    } else if (kind === 'summoner') {
+      drawSummoner(ctx, radius, facing, SUMMONER.palette, {
+        flash,
+        time: this.time,
+        alpha: hasStatus(w, e, 'invisible') ? alpha * 0.35 : alpha,
+        swing,
+        souls: w.query('ally').length,
+      });
+    } else if (kind === 'berserker') {
+      drawBerserker(ctx, radius, facing, BERSERKER.palette, {
+        flash,
+        time: this.time,
+        alpha: hasStatus(w, e, 'invisible') ? alpha * 0.35 : alpha,
+        swing,
+        rage: state.rage / BERSERKER.rage.max,
+        spinning: state.spin > 0,
+        frenzy: state.frenzy > 0,
       });
     }
   }

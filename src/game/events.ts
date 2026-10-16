@@ -39,8 +39,20 @@ export type GameEvent =
       dot: boolean;
       /** Part of the damage soaked by a shield. */
       absorbed: number;
+      /** The target is a summon (not the player). */
+      ally: boolean;
+      /** Dealt by a summon (lighter feedback). */
+      fromAlly: boolean;
     }
-  | { type: 'kill'; target: Entity; kind: RenderKind; x: number; y: number; byPlayer: boolean }
+  | {
+      type: 'kill';
+      target: Entity;
+      kind: RenderKind;
+      x: number;
+      y: number;
+      byPlayer: boolean;
+      elite: boolean;
+    }
   | { type: 'dashRefund'; x: number; y: number }
   | { type: 'windup'; entity: Entity }
   | { type: 'projectileWall'; x: number; y: number }
@@ -74,21 +86,41 @@ export type GameEvent =
   | { type: 'revive'; classIds: ClassId[]; x: number; y: number }
   | { type: 'block'; x: number; y: number; angle: number }
   | { type: 'parry'; x: number; y: number; angle: number }
-  | { type: 'shockwave'; x: number; y: number; radius: number; color: 'gold' | 'frost' | 'violet' }
+  | {
+      type: 'shockwave';
+      x: number;
+      y: number;
+      radius: number;
+      color: 'gold' | 'frost' | 'violet' | 'blood' | 'soul';
+    }
+  | { type: 'allySummon'; kind: 'wisp' | 'colossus'; x: number; y: number }
+  | { type: 'allyFade'; kind: 'wisp' | 'colossus'; x: number; y: number; burst: boolean }
+  | { type: 'allyStrike'; kind: 'wisp' | 'colossus'; x: number; y: number; angle: number }
+  | { type: 'command'; x: number; y: number; target: Entity | null }
+  | { type: 'spin'; x: number; y: number; radius: number }
+  | { type: 'frenzy'; x: number; y: number; on: boolean }
   | { type: 'taunt'; x: number; y: number; radius: number }
   | {
       type: 'cast';
       x: number;
       y: number;
       angle: number;
-      spell: 'bolt' | 'empowered' | 'frost' | 'fire' | 'meteor';
+      spell: 'bolt' | 'empowered' | 'frost' | 'fire' | 'meteor' | 'axe';
     }
   | { type: 'interactFail'; x: number; y: number; reason: string }
   | { type: 'levelUp'; classId: ClassId; level: number; x: number; y: number }
   | { type: 'cardTaken'; classId: ClassId; card: string }
   | { type: 'talentTaken'; classId: ClassId; node: string }
   | { type: 'trail'; x: number; y: number }
-  | { type: 'pickup'; kind: 'gold' | 'key' | 'consumable'; x: number; y: number; label: string }
+  | {
+      type: 'pickup';
+      kind: 'gold' | 'key' | 'consumable';
+      x: number;
+      y: number;
+      label: string;
+      /** Gold gained (0 for other pickups). */
+      amount: number;
+    }
   | { type: 'relic'; id: RelicId; x: number; y: number }
   | { type: 'chestOpen'; x: number; y: number }
   | { type: 'purchase'; x: number; y: number; price: number }

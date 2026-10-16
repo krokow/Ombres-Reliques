@@ -27,5 +27,10 @@ export function emptyMods(): Mods {
     manaRegenPct: 0,
     damageReduction: 0,
     goldPct: 0,
+    minionDamagePct: 0,
+    minionLifePct: 0,
+    maxMinionsBonus: 0,
+    rageGainPct: 0,
+    rageDecayReduction: 0,
   };
 }
