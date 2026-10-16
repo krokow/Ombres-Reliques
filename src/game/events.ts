@@ -129,4 +129,6 @@ export type GameEvent =
   | { type: 'equip'; classId: ClassId; name: string; rarity: Rarity; x: number; y: number }
   | { type: 'consumable'; id: ConsumableId; x: number; y: number }
   | { type: 'bossPhase'; entity: Entity; phase: number; name: string; x: number; y: number }
-  | { type: 'victory'; level: number };
+  | { type: 'victory'; level: number }
+  | { type: 'tutorialStep'; step: number }
+  | { type: 'tutorialDone' };

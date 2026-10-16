@@ -19,6 +19,10 @@ export const AI = {
   separationWeight: 0.9,
   /** Extra spacing (px) kept between enemy bodies by steering. */
   separationPadding: 10,
+  /** Push away from nearby wall tiles, so wide bodies slide around pillar corners. */
+  wallAvoidWeight: 1.4,
+  /** Avoidance reach, as a fraction of the body radius beyond its edge. */
+  wallAvoidPadding: 0.6,
   /** Blind strikes into the smoke veil use a longer cooldown so the veil keeps its value. */
   blindCooldownMult: 1.6,
   /** Distance at which a searching enemy considers the last known position reached. */

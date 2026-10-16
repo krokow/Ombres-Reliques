@@ -17,7 +17,32 @@ export interface SaveData {
   /** Run in progress, resumable at the start of its floor (design 2b). */
   run: RunSnapshot | null;
   history: RunRecord[];
-  settings: { muted: boolean };
+  settings: Settings;
+}
+
+export interface Settings {
+  muted: boolean;
+  /** Sound effects and music volumes, 0..1. */
+  sfxVolume: number;
+  musicVolume: number;
+  /** Screen shake on/off (accessibility). */
+  shake: boolean;
+  /** Contextual tips during the first runs. */
+  hints: boolean;
+  hintsSeen: string[];
+  tutorialDone: boolean;
+}
+
+export function defaultSettings(): Settings {
+  return {
+    muted: false,
+    sfxVolume: 0.8,
+    musicVolume: 0.5,
+    shake: true,
+    hints: true,
+    hintsSeen: [],
+    tutorialDone: false,
+  };
 }
 
 /** Minimal storage interface: localStorage in the browser, a Map in tests. */
@@ -42,7 +67,7 @@ export function freshSave(): SaveData {
     meta: newMeta(),
     run: null,
     history: [],
-    settings: { muted: false },
+    settings: defaultSettings(),
   };
 }
 
@@ -65,7 +90,7 @@ const MIGRATIONS: Record<number, (old: Raw) => Raw> = {
     },
     run: null,
     history: [],
-    settings: { muted: false },
+    settings: defaultSettings(),
   }),
 };
 
@@ -109,13 +134,32 @@ function sanitize(raw: Raw): SaveData {
           r.team.every((id) => typeof id === 'string' && isClassId(id)),
       )
     : [];
-  const settings = raw.settings as Raw | undefined;
   return {
     version: SAVE_VERSION,
     meta,
     run: isValidSnapshot(raw.run) ? raw.run : null,
     history,
-    settings: { muted: settings?.muted === true },
+    settings: sanitizeSettings(raw.settings),
+  };
+}
+
+function sanitizeSettings(raw: unknown): Settings {
+  const d = defaultSettings();
+  if (typeof raw !== 'object' || raw === null) return d;
+  const r = raw as Raw;
+  const unit = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;
+  const bool = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
+  return {
+    muted: bool(r.muted, d.muted),
+    sfxVolume: unit(r.sfxVolume, d.sfxVolume),
+    musicVolume: unit(r.musicVolume, d.musicVolume),
+    shake: bool(r.shake, d.shake),
+    hints: bool(r.hints, d.hints),
+    hintsSeen: Array.isArray(r.hintsSeen)
+      ? r.hintsSeen.filter((h): h is string => typeof h === 'string')
+      : [],
+    tutorialDone: bool(r.tutorialDone, d.tutorialDone),
   };
 }
 

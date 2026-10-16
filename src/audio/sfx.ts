@@ -60,13 +60,14 @@ export class Sfx {
   private noise: AudioBuffer | null = null;
   private noiseOffset = 0;
   muted = false;
+  private volume = 1;
 
-  constructor(volume = 0.35) {
+  constructor(private readonly baseVolume = 0.35) {
     const unlock = (): void => {
       if (!this.ctx) {
         this.ctx = new AudioContext();
         this.master = this.ctx.createGain();
-        this.master.gain.value = volume;
+        this.master.gain.value = baseVolume * this.volume;
         this.master.connect(this.ctx.destination);
         const len = this.ctx.sampleRate;
         this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -82,6 +83,16 @@ export class Sfx {
     };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
+  }
+
+  /** Shared with the music so both start on the same user gesture. */
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  setVolume(v: number): void {
+    this.volume = v;
+    if (this.master) this.master.gain.value = this.baseVolume * v;
   }
 
   toggleMute(): boolean {

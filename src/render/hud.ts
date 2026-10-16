@@ -174,7 +174,9 @@ export class Hud {
     const loop = loopOf(game.level);
     const where = game.dungeon
       ? `${loop > 0 ? `Boucle ${loop + 1} · ` : ''}Étage ${game.level} · ${BIOMES[game.biome].name} ${floorInBiome(game.level)}/${FLOORS_PER_BIOME}`
-      : `Vague ${game.waves.wave}`;
+      : game.tutorial
+        ? 'Entraînement'
+        : `Vague ${game.waves.wave}`;
     ctx.fillText(`${where}   Éliminations ${party.kills}`, width - 14, 12);
     // Gold, keys and party relics (minimap sits below: keep this compact).
     ctx.font = `bold 12px ${FONT}`;

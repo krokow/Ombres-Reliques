@@ -154,6 +154,38 @@ function seek(ctx: AgentCtx, gx: number, gy: number, goalIsPlayer: boolean): Vec
   return normalize(c.x - ctx.t.x, c.y - ctx.t.y);
 }
 
+/**
+ * Repulsion from wall tiles touching the body (+ padding). Path directions
+ * aim at tile centres, which a body wider than a tile can't reach around a
+ * pillar corner; this nudge makes it slide off instead of sticking.
+ */
+function wallAvoid(ctx: AgentCtx): Vec2 {
+  const { map } = ctx.sim;
+  const s = map.tileSize;
+  const reach = ctx.body.radius * (1 + AI.wallAvoidPadding);
+  let x = 0;
+  let y = 0;
+  const x0 = Math.floor((ctx.t.x - reach) / s);
+  const x1 = Math.floor((ctx.t.x + reach) / s);
+  const y0 = Math.floor((ctx.t.y - reach) / s);
+  const y1 = Math.floor((ctx.t.y + reach) / s);
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      if (!map.isSolid(tx, ty)) continue;
+      const cx = clamp(ctx.t.x, tx * s, (tx + 1) * s);
+      const cy = clamp(ctx.t.y, ty * s, (ty + 1) * s);
+      const dx = ctx.t.x - cx;
+      const dy = ctx.t.y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d >= reach || d < 1e-6) continue;
+      const k = 1 - d / reach;
+      x += (dx / d) * k;
+      y += (dy / d) * k;
+    }
+  }
+  return { x, y };
+}
+
 /** Steering repulsion from nearby enemies, so groups spread out instead of stacking. */
 function separation(ctx: AgentCtx): Vec2 {
   let x = 0;
@@ -186,7 +218,11 @@ export function moveToward(
 ): void {
   const dir = seek(ctx, gx, gy, goalIsPlayer);
   const sep = separation(ctx);
-  const d = normalize(dir.x + sep.x * AI.separationWeight, dir.y + sep.y * AI.separationWeight);
+  const wall = wallAvoid(ctx);
+  const d = normalize(
+    dir.x + sep.x * AI.separationWeight + wall.x * AI.wallAvoidWeight,
+    dir.y + sep.y * AI.separationWeight + wall.y * AI.wallAvoidWeight,
+  );
   const speed = speedOf(ctx, factor);
   steer(ctx.v, d.x * speed, d.y * speed, ctx.mover.accel, ctx.mover.decel, ctx.sim.dt);
 }

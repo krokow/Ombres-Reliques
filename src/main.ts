@@ -30,6 +30,10 @@ import { DebugOverlay } from './ui/debugOverlay';
 import { ProgressPanel } from './ui/progressPanel';
 import { AltarPanel, ComparePanel } from './ui/lootPanels';
 import { Menus } from './ui/menus';
+import { Hints } from './ui/hints';
+import { TutorialPanel } from './ui/tutorialPanel';
+import { Music } from './audio/music';
+import { TUTORIAL_PARTY } from './data/tutorial';
 import { browserStore, SaveManager } from './save/save';
 import {
   allRelics,
@@ -67,7 +71,16 @@ const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
 const saves = new SaveManager(browserStore());
+const music = new Music(() => sfx.context);
 if (saves.data.settings.muted) sfx.toggleMute();
+
+function applySettings(): void {
+  const s = saves.data.settings;
+  sfx.setVolume(s.sfxVolume);
+  music.setVolume(s.musicVolume);
+  music.setMuted(sfx.muted);
+  camera.shakeScale = s.shake ? 1 : 0;
+}
 const progressPanel = new ProgressPanel(uiRoot);
 const comparePanel = new ComparePanel(uiRoot);
 const altarPanel = new AltarPanel(uiRoot);
@@ -127,8 +140,32 @@ const menus: Menus = new Menus(uiRoot, {
   wipeSave: () => {
     saves.reset();
     if (saves.data.settings.muted !== sfx.muted) sfx.toggleMute();
+    applySettings();
+  },
+  startTutorial: () => {
+    launch('ENTRAINEMENT', { party: TUTORIAL_PARTY, tutorial: true }, 'arena');
+  },
+  inTutorial: () => game?.tutorial != null,
+  setSetting: (key, value) => {
+    saves.data.settings[key] = value;
+    saves.write();
+    applySettings();
   },
 });
+const hints = new Hints(uiRoot, saves);
+const tutorialPanel = new TutorialPanel(uiRoot, {
+  skip: () => {
+    saves.data.settings.tutorialDone = true;
+    saves.write();
+    toTitle();
+  },
+  play: () => {
+    toTitle();
+    menus.show('team');
+  },
+  title: () => toTitle(),
+});
+applySettings();
 
 function launch(seed: string, opts: GameOptions, mode: 'dungeon' | 'arena' = 'dungeon'): Game {
   if (game) progressPanel.setOpen(false, game);
@@ -187,6 +224,7 @@ function endRun(outcome: RunRecord['outcome']): void {
 
 function toTitle(): void {
   if (game) progressPanel.setOpen(false, game);
+  hints.clear();
   game = null;
   menus.show('title');
 }
@@ -392,6 +430,7 @@ function handleMetaKeys(g: Game | null): void {
   if (input.consumePressed('mute')) {
     saves.data.settings.muted = sfx.toggleMute();
     saves.write();
+    music.setMuted(sfx.muted);
     debug.print(sfx.muted ? 'Son coupé' : 'Son activé');
   }
   // Menus and the console take the keyboard (seed field, Escape…).
@@ -401,7 +440,7 @@ function handleMetaKeys(g: Game | null): void {
   if (input.consumePressed('progress')) progressPanel.toggle(g);
   if (input.consumePressed('pause') && g.playerAlive && !runEnded) menus.show('pause');
   // Arena (debug) runs aren't recorded: restart straight away.
-  if (!g.playerAlive && g.mode === 'arena') {
+  if (!g.playerAlive && g.mode === 'arena' && !g.tutorial) {
     if (input.consumePressed('confirm')) newGame(g.seed, 'arena');
   }
 }
@@ -431,6 +470,9 @@ runLoop(clock, {
     const g = game;
     const dt = Math.min(frameMs, 100) / 1000;
     fps.frame(frameMs);
+    hints.update(g, dt, menus.pausesGame);
+    tutorialPanel.update(g);
+    music.play(!g || menus.current === 'title' ? 'title' : g.biome);
     if (!g) {
       renderer.screenSpace();
       renderer.ctx.fillStyle = '#07060b';
@@ -453,6 +495,13 @@ runLoop(clock, {
       if (ev.type === 'altarOpen') altarPanel.show(ev.altar, ev.options);
       if (ev.type === 'victory' && !runEnded) menus.show('victory');
       if (ev.type === 'playerDeath' && g.mode === 'dungeon') endRun('death');
+      if (ev.type === 'doorsLocked') music.setIntensity(1);
+      if (ev.type === 'roomCleared' || ev.type === 'floor') music.setIntensity(0);
+      if (ev.type === 'tutorialDone') {
+        saves.data.settings.tutorialDone = true;
+        saves.write();
+      }
+      if (!g.tutorial) hints.onEvent(ev);
       fx.handle(ev, camera);
       anim.onEvent(ev, g);
       sfx.onEvent(ev);

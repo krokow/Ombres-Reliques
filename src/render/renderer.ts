@@ -221,6 +221,7 @@ export class Renderer {
 
     this.drawSlashes(game, fx, alpha);
     fx.drawParticles(ctx);
+    this.drawAmbient(game, camera);
     this.drawFog(game, camera, pal);
     this.drawEnemyBars(game, alpha);
     if (opts.showHitboxes) this.drawHitboxes(game);
@@ -336,6 +337,37 @@ export class Renderer {
       if (hasStatus(w, e, 'stun')) this.drawStunStars(radius);
     }
     ctx.restore();
+  }
+
+  /**
+   * Biome motes (dust, spores, embers) on a screen-sized tile that wraps with
+   * the camera: positions are a pure function of index and time.
+   */
+  private drawAmbient(game: Game, camera: Camera): void {
+    const a = BIOMES[game.biome].ambient;
+    const ctx = this.ctx;
+    const w = this.width / camera.zoom + 80;
+    const h = this.height / camera.zoom + 80;
+    const left = camera.x - w / 2;
+    const top = camera.y - h / 2;
+    ctx.fillStyle = a.color;
+    if (a.glow) {
+      ctx.shadowColor = a.color;
+      ctx.shadowBlur = 6;
+    }
+    for (let i = 0; i < a.count; i++) {
+      const hx = ((i * 2654435761) >>> 0) / 4294967296;
+      const hy = ((i * 1597334677 + 12345) >>> 0) / 4294967296;
+      const phase = hx * 6.28;
+      const px = hx * w + Math.sin(this.time * 0.4 + phase) * a.drift;
+      const py = hy * h - this.time * a.rise;
+      const x = left + ((((px - left) % w) + w) % w);
+      const y = top + ((((py - top) % h) + h) % h);
+      ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(this.time * 1.3 + phase * 3));
+      ctx.fillRect(x, y, a.size, a.size);
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
   }
 
   private drawStunStars(radius: number): void {

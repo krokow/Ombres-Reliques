@@ -18,6 +18,8 @@ export class Camera {
   zoom: number = CAMERA.zoom;
   /** 0..1; shake intensity is trauma² so small hits stay subtle. */
   trauma = 0;
+  /** 0 disables screen shake (option), 1 = full. */
+  shakeScale = 1;
   shakeX = 0;
   shakeY = 0;
   shakeAngle = 0;
@@ -36,7 +38,7 @@ export class Camera {
   }
 
   addTrauma(amount: number): void {
-    this.trauma = Math.min(1, this.trauma + amount);
+    this.trauma = Math.min(1, this.trauma + amount * this.shakeScale);
   }
 
   /** `aim` is the cursor in world space; the camera leans slightly towards it. */

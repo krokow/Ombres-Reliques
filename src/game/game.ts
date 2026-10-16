@@ -32,6 +32,7 @@ import { handleSwitchInput, install, reviveAll, tickParty } from '../systems/tea
 import { maxDashCharges, recomputeAll } from '../systems/progression';
 import { emptyStats, trackEvent, type RunStats } from './runStats';
 import { snapshotParty, SNAPSHOT_FORMAT, type RunSnapshot } from './snapshot';
+import { createTutorial, updateTutorial, type TutorialState } from '../systems/tutorial';
 import { updateZones } from '../systems/zones';
 import { tickStatuses } from '../systems/statuses';
 import { updateWaves, type WaveState } from '../systems/waves';
@@ -55,6 +56,8 @@ export interface GameOptions {
   daily?: boolean;
   /** Resume a run saved at the start of a floor. */
   restore?: RunSnapshot;
+  /** Guided training room (arena, scripted steps, no death). */
+  tutorial?: boolean;
 }
 
 /**
@@ -83,6 +86,8 @@ export class Game implements Sim {
   hitstopTicks = 0;
   godMode = false;
   readonly daily: boolean;
+  readonly immortal: boolean;
+  readonly tutorial: TutorialState | null;
   stats: RunStats;
   /** State at the start of the current floor (what the save holds). */
   floorSnapshot: RunSnapshot | null = null;
@@ -101,8 +106,10 @@ export class Game implements Sim {
       progress: root.fork('progress'),
       loot: root.fork('loot'),
     };
-    this.mode = options.mode ?? 'dungeon';
-    this.wavesEnabled = this.mode === 'arena' && (options.waves ?? true);
+    this.tutorial = options.tutorial ? createTutorial() : null;
+    this.immortal = this.tutorial !== null;
+    this.mode = this.tutorial ? 'arena' : (options.mode ?? 'dungeon');
+    this.wavesEnabled = this.mode === 'arena' && !this.tutorial && (options.waves ?? true);
     const restore = options.restore;
     this.level = restore?.level ?? options.startLevel ?? 1;
     this.daily = restore?.daily ?? options.daily ?? false;
@@ -189,6 +196,7 @@ export class Game implements Sim {
       const ev = this.events[i];
       if (ev) trackEvent(this.stats, ev, this.player);
     }
+    if (this.tutorial) updateTutorial(this, this.tutorial, this.events.slice(before));
     if (this.dungeon?.descendRequested) this.descend();
   }
 

@@ -19,6 +19,15 @@ export interface BiomeDef {
     wallFace: string;
     wallEdge: string;
   };
+  /** Ambient particles drifting over the floor (render only). */
+  ambient: {
+    color: string;
+    count: number;
+    size: number;
+    rise: number;
+    drift: number;
+    glow: boolean;
+  };
   dressing: {
     /** Random walks carving outwards from room edges (organic borders). */
     erosionWalks: number;
@@ -53,6 +62,7 @@ export const BIOMES = {
       wallFace: '#231e31',
       wallEdge: '#4d4469',
     },
+    ambient: { color: '#9c94b8', count: 40, size: 1.5, rise: 4, drift: 6, glow: false },
     dressing: {
       erosionWalks: 0,
       erosionLength: 0,
@@ -82,6 +92,7 @@ export const BIOMES = {
       wallFace: '#1a2a1f',
       wallEdge: '#4a6b4f',
     },
+    ambient: { color: '#a6e06a', count: 55, size: 2, rise: 9, drift: 14, glow: true },
     dressing: {
       erosionWalks: 4,
       erosionLength: 10,
@@ -112,6 +123,7 @@ export const BIOMES = {
       wallFace: '#2b1916',
       wallEdge: '#a8452a',
     },
+    ambient: { color: '#ffb347', count: 70, size: 1.8, rise: 30, drift: 10, glow: true },
     dressing: {
       erosionWalks: 2,
       erosionLength: 6,

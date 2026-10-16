@@ -341,7 +341,7 @@ export const GUARDIAN: GuardianDef = {
   attackMoveFactor: 0.3,
   combo: [
     {
-      damage: 16,
+      damage: 19,
       range: 56,
       arc: deg(160),
       windupTicks: 7,
@@ -352,7 +352,7 @@ export const GUARDIAN: GuardianDef = {
       stagger: 16,
     },
     {
-      damage: 26,
+      damage: 30,
       range: 62,
       arc: deg(200),
       windupTicks: 12,

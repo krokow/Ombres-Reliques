@@ -12,7 +12,7 @@ import {
   type Purchase,
   type RunRecord,
 } from '../save/meta';
-import type { SaveData } from '../save/save';
+import type { SaveData, Settings } from '../save/save';
 
 /** What the menus need from the app; they never touch the simulation directly. */
 export interface MenuHost {
@@ -29,10 +29,23 @@ export interface MenuHost {
   finishVictory(): void;
   newRunSameTeam(sameSeed: boolean): void;
   wipeSave(): void;
+  startTutorial(): void;
+  /** True while the training room is running (pause menu differs). */
+  inTutorial(): boolean;
+  setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void;
 }
 
 type Screen =
-  'none' | 'title' | 'team' | 'sanctuary' | 'history' | 'controls' | 'pause' | 'victory' | 'end';
+  | 'none'
+  | 'title'
+  | 'team'
+  | 'sanctuary'
+  | 'history'
+  | 'controls'
+  | 'options'
+  | 'pause'
+  | 'victory'
+  | 'end';
 
 export interface EndSummary {
   record: RunRecord;
@@ -82,6 +95,10 @@ export class Menus {
     this.root.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
       if (t.dataset.field === 'seed') this.seed = t.value;
+      const opt = t.dataset.option as keyof Settings | undefined;
+      if (opt === 'sfxVolume' || opt === 'musicVolume')
+        this.host.setSetting(opt, Number(t.value) / 100);
+      else if (opt === 'shake' || opt === 'hints') this.host.setSetting(opt, t.checked);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
   }
@@ -136,7 +153,8 @@ export class Menus {
         this.screen === 'team' ||
         this.screen === 'sanctuary' ||
         this.screen === 'history' ||
-        this.screen === 'controls'
+        this.screen === 'controls' ||
+        this.screen === 'options'
       )
         this.show('title');
     } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
@@ -199,6 +217,11 @@ export class Menus {
         return this.host.finishVictory();
       case 'again':
         return this.host.newRunSameTeam(arg === 'seed');
+      case 'tutorial':
+        return this.host.startTutorial();
+      case 'resetHints':
+        this.host.setSetting('hintsSeen', []);
+        return this.render();
       case 'wipe':
         if (!this.confirmWipe) {
           this.confirmWipe = true;
@@ -225,6 +248,7 @@ export class Menus {
       sanctuary: () => this.sanctuary(),
       history: () => this.history(),
       controls: () => this.controls(),
+      options: () => this.options(),
       pause: () => this.pause(),
       victory: () => this.victory(),
       end: () => this.endPanel(),
@@ -253,11 +277,20 @@ export class Menus {
             ? `<button data-action="continue" class="mn-primary">Continuer<small>${run.daily ? 'Défi du jour · ' : ''}Étage ${run.level} · ${esc(teamLabel(run.members.map((x) => x.classId)))}</small></button>`
             : ''
         }
-        <button data-action="new" class="${run ? '' : 'mn-primary'}">Nouvelle run${run ? '<small>remplace la run en cours</small>' : ''}</button>
+        ${
+          save.settings.tutorialDone
+            ? ''
+            : `<button data-action="tutorial" class="${run ? '' : 'mn-primary'}">Entraînement<small>recommandé pour une première partie · 3 minutes</small></button>`
+        }
+        <button data-action="new" class="${run || !save.settings.tutorialDone ? '' : 'mn-primary'}">Nouvelle run${run ? '<small>remplace la run en cours</small>' : ''}</button>
         <button data-action="daily">Défi du jour<small>${today} · ${esc(teamLabel(daily.team))}${dailyDone ? ' · déjà récompensé' : ` · récompense ×${META.rewards.dailyMult}`}</small></button>
         <button data-action="screen" data-arg="sanctuary">Sanctuaire<small>déblocages et améliorations</small></button>
         <button data-action="screen" data-arg="history">Historique</button>
-        <button data-action="screen" data-arg="controls">Commandes</button>
+        <div class="mn-row-buttons">
+          <button data-action="screen" data-arg="controls">Commandes</button>
+          <button data-action="screen" data-arg="options">Options</button>
+          ${save.settings.tutorialDone ? '<button data-action="tutorial">Entraînement</button>' : ''}
+        </div>
       </div>
       <div class="mn-foot">${this.shards()} · ${m.runs} run${m.runs > 1 ? 's' : ''} · ${m.victories} victoire${m.victories > 1 ? 's' : ''} · meilleur étage ${m.bestFloor || '—'}</div>
       ${this.notice ? `<div class="mn-notice">${esc(this.notice)}</div>` : ''}`;
@@ -395,7 +428,33 @@ export class Menus {
       <div class="mn-buttons mn-inline"><button data-action="screen" data-arg="title">Retour</button></div>`;
   }
 
+  private options(): string {
+    const s = this.host.save().settings;
+    const range = (key: 'sfxVolume' | 'musicVolume', label: string): string =>
+      `<label class="mn-option">${label}<input type="range" min="0" max="100" step="5" data-option="${key}" value="${Math.round(s[key] * 100)}" /></label>`;
+    const check = (key: 'shake' | 'hints', label: string): string =>
+      `<label class="mn-option">${label}<input type="checkbox" data-option="${key}" ${s[key] ? 'checked' : ''} /></label>`;
+    return `
+      <h2>Options</h2>
+      ${range('sfxVolume', 'Effets sonores')}
+      ${range('musicVolume', 'Musique')}
+      ${check('shake', 'Tremblements de caméra')}
+      ${check('hints', 'Astuces pendant les premières runs')}
+      <p class="mn-help">${keyLabel(KEY_BINDINGS.mute[0])} coupe tout le son en jeu.</p>
+      <div class="mn-buttons mn-inline">
+        <button data-action="resetHints">Revoir les astuces</button>
+        <button data-action="screen" data-arg="title">Retour</button>
+      </div>`;
+  }
+
   private pause(): string {
+    if (this.host.inTutorial())
+      return `
+      <h2>Pause</h2>
+      <div class="mn-buttons">
+        <button data-action="resume" class="mn-primary">Reprendre</button>
+        <button data-action="quit">Quitter l’entraînement</button>
+      </div>`;
     return `
       <h2>Pause</h2>
       <div class="mn-buttons">

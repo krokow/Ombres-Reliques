@@ -138,6 +138,32 @@
 - **Statistiques de run** (`game/runStats.ts`) calculées par la simulation à partir de ses propres
   événements : elles voyagent dans l'instantané et restent déterministes.
 
+## Polish (M9)
+
+- **Tutoriel (choix 1c)** :
+  - **Entraînement** guidé (`data/tutorial.ts`, `systems/tutorial.ts`) : 10 étapes dans l'arène
+    (déplacement, combo, dash, dos, tir, voile, switch, blocage, ultime, combat). La logique vit dans la
+    simulation (objectifs comptés sur ses propres événements, mannequins = ennemis étourdis dos
+    tourné), l'équipe ne peut pas tomber sous 1 PV. Proposé en tête de l'écran titre tant qu'il n'a
+    pas été fait ou passé ; toujours rejouable.
+  - **Astuces contextuelles** (`data/hints.ts`, `ui/hints.ts`) : 10 astuces, chacune affichée une
+    seule fois, jamais bloquantes, pendant les 5 premières runs ; désactivables, « revoir les astuces »
+    dans les Options. Les textes utilisent les vraies touches du joueur.
+- **Audio** : musique procédurale (drone filtré + arpège clairsemé, gammes par biome dans
+  `data/music.ts`, pulsation ajoutée pendant les combats à portes scellées), LCG fixe pour les notes.
+  Volumes effets/musique séparés.
+- **Particules d'ambiance** par biome (poussière, spores, braises), position = fonction pure de
+  l'indice et du temps, ancrées au monde.
+- **Accessibilité** : tremblements de caméra désactivables.
+- **Équilibrage par sonde** (`tools/balance.ts`) : un bot naïf (pas d'esquive, ni talents ni objets)
+  affronte chaque boss à son étage avec chaque classe seule ; le test garde-fou exige une victoire en
+  < 3 min et un écart < 2× entre classes. La sonde a révélé un vrai bug : les gros corps restaient
+  coincés sur les coins de piliers (le flow field vise le centre des tuiles) → répulsion des murs
+  proportionnelle au rayon dans le steering. Le Gardien, nettement en retrait, a gagné ~17 % de dégâts
+  de masse.
+- **Déploiement (choix 2a)** : GitHub Actions → GitHub Pages depuis la branche par défaut ; CI sur
+  toutes les branches et PR.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

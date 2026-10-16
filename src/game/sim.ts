@@ -30,4 +30,6 @@ export interface Sim {
   /** Freezes the simulation for `ticks` (keeps the longest request). */
   hitstop(ticks: number): void;
   godMode: boolean;
+  /** The party can't drop below 1 HP (training room). */
+  readonly immortal: boolean;
 }

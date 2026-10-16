@@ -159,7 +159,7 @@ export function dealDamage(sim: Sim, target: Entity, spec: DamageSpec): number {
   const absorbed = Math.min(th.shield, total);
   th.shield -= absorbed;
   // Frenzy: the berserker can't drop below 1 HP.
-  const floor = targetIsPlayer && inFrenzy(sim) ? 1 : 0;
+  const floor = targetIsPlayer && (inFrenzy(sim) || sim.immortal) ? 1 : 0;
   const dealt = Math.max(0, Math.min(th.hp - floor, total - absorbed));
   th.hp -= dealt;
   // Talent "Coup de grâce": badly wounded enemies are finished off.

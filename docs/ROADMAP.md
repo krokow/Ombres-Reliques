@@ -11,7 +11,7 @@
 | M6 – Loot               | objets, affixes, raretés, coffres, boutique, autels, consommables                                 | ✅   |
 | M7 – Boss et biomes     | 3 biomes, mini-boss, boss à phases, scaling                                                       | ✅   |
 | M8 – Méta et sauvegarde | déblocages, sauvegarde versionnée, écran titre, sélection, daily seed                             | ✅   |
-| M9 – Polish             | audio, particules, équilibrage, tutoriel, déploiement                                             | ⏳   |
+| M9 – Polish             | audio, particules, équilibrage, tutoriel, déploiement                                             | ✅   |
 
 ## M0 – livré
 
@@ -214,3 +214,15 @@
   infini ou encaisser).
 - **Défi du jour** : seed et équipe du jour, sans bonus permanents, récompense ×1,5 une fois par jour.
 - Debug : `shards <n>`, `unlockall`. 221 tests.
+
+## M9 – livré
+
+- **Entraînement guidé** (10 étapes, mannequins, impossible de mourir, passable) + **astuces
+  contextuelles** non bloquantes pendant les premières runs (choix 1c).
+- **Musique procédurale** par biome (et écran titre), intensité en combat scellé ; **Options** :
+  volumes effets/musique, tremblements de caméra, astuces.
+- **Particules d'ambiance** par biome.
+- **Sonde d'équilibrage** (`npm run balance`) et garde-fous en test ; correction des boss coincés sur
+  les piliers ; Gardien rehaussé.
+- **CI + déploiement GitHub Pages** (choix 2a).
+- 229 tests.
