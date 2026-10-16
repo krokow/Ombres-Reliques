@@ -876,3 +876,43 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+.mn-beasts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px;
+}
+
+.mn-beast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 4%);
+  font-size: 12px;
+}
+
+.mn-beast small {
+  display: block;
+  color: #9a93ad;
+  font-size: 10px;
+}
+
+.mn-beast.unknown {
+  opacity: 0.45;
+}
+
+.mn-beast.boss strong {
+  color: #ffd34d;
+}
+
+.mn-shop.locked {
+  opacity: 0.55;
+}
+
+.mn-achievement {
+  margin: 4px 0;
+  color: #ffd34d;
+  font-size: 13px;
+}

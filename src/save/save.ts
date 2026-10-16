@@ -1,4 +1,6 @@
-import { isClassId } from '../data/classes';
+import { isClassId, type ClassId } from '../data/classes';
+import { ACHIEVEMENTS } from '../data/achievements';
+import { isEnemyId } from '../data/enemies';
 import { RELEASED_CLASS_UNLOCKS, unlockById, upgradeById } from '../data/meta';
 import { isDifficultyId, type DifficultyId } from '../data/dungeon';
 import { isValidSnapshot, type RunSnapshot } from '../game/snapshot';
@@ -125,6 +127,14 @@ const MIGRATIONS: Record<number, (old: Raw) => Raw> = {
 const num = (v: unknown, fallback = 0): number =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
 
+function sanitizeCounts(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const [id, n] of Object.entries(raw as Raw))
+    if (isEnemyId(id) && typeof n === 'number' && n > 0) out[id] = Math.floor(n);
+  return out;
+}
+
 /** Keeps only known, well-formed values: a hand-edited or partial save can't break the game. */
 function sanitize(raw: Raw): SaveData {
   const m = (typeof raw.meta === 'object' && raw.meta !== null ? raw.meta : {}) as Raw;
@@ -151,6 +161,24 @@ function sanitize(raw: Raw): SaveData {
     bestFloor: num(m.bestFloor),
     totalKills: num(m.totalKills),
     lastDaily: typeof m.lastDaily === 'string' ? m.lastDaily : null,
+    bestiary: sanitizeCounts(m.bestiary),
+    achievements: Array.isArray(m.achievements)
+      ? [
+          ...new Set(
+            m.achievements.filter(
+              (id): id is string => typeof id === 'string' && ACHIEVEMENTS.some((a) => a.id === id),
+            ),
+          ),
+        ]
+      : [],
+    classWins: Array.isArray(m.classWins)
+      ? [
+          ...new Set(
+            m.classWins.filter((id): id is ClassId => typeof id === 'string' && isClassId(id)),
+          ),
+        ]
+      : [],
+    dailiesDone: Math.floor(num(m.dailiesDone)),
   };
   const history = Array.isArray(raw.history)
     ? (raw.history as RunRecord[]).filter(

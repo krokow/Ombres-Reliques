@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ACHIEVEMENTS } from '../src/data/achievements';
 import { RUN_FLOORS } from '../src/data/biomes';
 import { UNLOCKS } from '../src/data/meta';
 import { CLASS_IDS } from '../src/data/classes';
@@ -58,7 +59,7 @@ describe('Méta', () => {
     expect(rewardFor(deep, { dailyBonus: false })).toBeGreaterThan(
       rewardFor(shallow, { dailyBonus: false }) * 10,
     );
-    const meta = newMeta();
+    const meta = { ...newMeta(), achievements: ACHIEVEMENTS.map((a) => a.id) };
     const history: RunRecord[] = [];
     const end = {
       seed: 'X',
@@ -220,5 +221,54 @@ describe('Reprise de run (2b)', () => {
     const resumed = new Game('BONUS', DT, { restore: JSON.parse(JSON.stringify(g.floorSnapshot)) });
     expect(resumed.world.req(resumed.player, 'party').members[0]!.health.max).toBe(88);
     expect(resumed.world.req(resumed.player, 'party').relicPool).toEqual(['bloodstone']);
+  });
+});
+
+describe('Bestiaire et succès', () => {
+  const end = (
+    over: Partial<Parameters<typeof recordRun>[2]> = {},
+  ): Parameters<typeof recordRun>[2] => ({
+    seed: 'S',
+    daily: false,
+    date: '2026-10-17',
+    team: ['shadowBlade', 'guardian', 'arcanist'],
+    stats: { ...emptyStats(), deepestFloor: 4, kills: 3, killsByEnemy: { ghoul: 2, wraith: 1 } },
+    outcome: 'death',
+    ...over,
+  });
+
+  it('kills feed the bestiary and depth unlocks achievements once, with their reward', () => {
+    const meta = newMeta();
+    const first = recordRun(meta, [], end());
+    expect(meta.bestiary).toEqual({ ghoul: 2, wraith: 1 });
+    expect(first.achievements).toEqual(['deep3', 'crypt']);
+    expect(meta.shards).toBe(first.shards);
+    const again = recordRun(meta, [], end());
+    expect(again.achievements).toEqual([]);
+    expect(meta.bestiary.ghoul).toBe(4);
+  });
+
+  it('victories by difficulty and class wins', () => {
+    const meta = newMeta();
+    const win = { ...emptyStats(), deepestFloor: 9, victory: true, ticks: 60 * 60 * 40 };
+    const r = recordRun(meta, [], end({ stats: win, difficulty: 'hard', outcome: 'victory' }));
+    expect(r.achievements).toEqual(expect.arrayContaining(['victory', 'victoryHard']));
+    expect(r.achievements).not.toContain('victoryNightmare');
+    expect(r.achievements).not.toContain('speed');
+    expect(meta.classWins).toEqual(['shadowBlade', 'guardian', 'arcanist']);
+  });
+
+  it('bestiary and achievements survive save sanitizing (unknown ids dropped)', () => {
+    const { save } = migrate({
+      version: SAVE_VERSION,
+      meta: {
+        bestiary: { ghoul: 3, dragon: 9 },
+        achievements: ['victory', 'fake'],
+        classWins: ['guardian', 'x'],
+      },
+    });
+    expect(save.meta.bestiary).toEqual({ ghoul: 3 });
+    expect(save.meta.achievements).toEqual(['victory']);
+    expect(save.meta.classWins).toEqual(['guardian']);
   });
 });

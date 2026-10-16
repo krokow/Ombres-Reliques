@@ -11,6 +11,8 @@ import {
 } from '../data/meta';
 import { Rng, normalizeSeed } from '../core/rng';
 import type { RunStats } from '../game/runStats';
+import { ACHIEVEMENTS, type AchievementCondition } from '../data/achievements';
+import { ENEMIES, enemyDef, type EnemyId } from '../data/enemies';
 import { DIFFICULTIES, type DifficultyId } from '../data/dungeon';
 
 /** Persistent progression across runs. Pure data + pure functions (testable, no DOM). */
@@ -26,6 +28,12 @@ export interface MetaState {
   totalKills: number;
   /** Last daily challenge whose rewards were claimed. */
   lastDaily: string | null;
+  /** Enemy id → lifetime kills (bestiary). */
+  bestiary: Record<string, number>;
+  achievements: string[];
+  /** Classes that were in a winning team. */
+  classWins: ClassId[];
+  dailiesDone: number;
 }
 
 export function newMeta(): MetaState {
@@ -39,7 +47,40 @@ export function newMeta(): MetaState {
     bestFloor: 0,
     totalKills: 0,
     lastDaily: null,
+    bestiary: {},
+    achievements: [],
+    classWins: [],
+    dailiesDone: 0,
   };
+}
+
+/** Enemies the bestiary tracks: every regular foe, or the bosses. */
+export function bestiaryIds(bosses: boolean): EnemyId[] {
+  return (Object.keys(ENEMIES) as EnemyId[]).filter(
+    (id) => (enemyDef(id).behavior === 'boss') === bosses,
+  );
+}
+
+function achieved(meta: MetaState, c: AchievementCondition, end: RunEnd): boolean {
+  switch (c.kind) {
+    case 'floor':
+      return end.stats.deepestFloor >= c.floor;
+    case 'victory': {
+      if (!end.stats.victory) return false;
+      const order: DifficultyId[] = ['normal', 'hard', 'nightmare'];
+      return order.indexOf(end.difficulty ?? 'normal') >= order.indexOf(c.difficulty ?? 'normal');
+    }
+    case 'fastVictory':
+      return end.stats.victory && end.stats.ticks <= c.minutes * 3600;
+    case 'totalKills':
+      return meta.totalKills >= c.kills;
+    case 'bestiary':
+      return bestiaryIds(c.bosses).every((id) => (meta.bestiary[id] ?? 0) > 0);
+    case 'daily':
+      return meta.dailiesDone > 0;
+    case 'allClassesWon':
+      return c.classes.every((id) => meta.classWins.includes(id));
+  }
 }
 
 /** One finished run, as shown in the history. */
@@ -57,6 +98,8 @@ export interface RunRecord {
   ticks: number;
   shards: number;
   difficulty?: DifficultyId;
+  /** Achievements unlocked by this run. */
+  achievements?: string[];
 }
 
 export function unlockedClasses(meta: MetaState): ClassId[] {
@@ -154,6 +197,21 @@ export function recordRun(meta: MetaState, history: RunRecord[], end: RunEnd): R
   if (end.stats.victory) meta.victories++;
   meta.bestFloor = Math.max(meta.bestFloor, end.stats.deepestFloor);
   meta.totalKills += end.stats.kills;
+  for (const [id, n] of Object.entries(end.stats.killsByEnemy ?? {}))
+    meta.bestiary[id] = (meta.bestiary[id] ?? 0) + n;
+  if (end.stats.victory)
+    for (const id of end.team) if (!meta.classWins.includes(id)) meta.classWins.push(id);
+  if (end.daily) meta.dailiesDone++;
+  const unlocked = ACHIEVEMENTS.filter(
+    (a) => !meta.achievements.includes(a.id) && achieved(meta, a.condition, end),
+  );
+  let bonus = 0;
+  for (const a of unlocked) {
+    meta.achievements.push(a.id);
+    bonus += a.reward;
+  }
+  meta.shards += bonus;
+  meta.totalShards += bonus;
   const record: RunRecord = {
     date: end.date,
     seed: end.seed,
@@ -165,8 +223,9 @@ export function recordRun(meta: MetaState, history: RunRecord[], end: RunEnd): R
     kills: end.stats.kills,
     bosses: end.stats.bosses,
     ticks: end.stats.ticks,
-    shards,
+    shards: shards + bonus,
     difficulty: end.difficulty ?? 'normal',
+    achievements: unlocked.map((a) => a.id),
   };
   history.unshift(record);
   history.length = Math.min(history.length, META.historySize);

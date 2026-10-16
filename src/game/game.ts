@@ -123,7 +123,10 @@ export class Game implements Sim {
     this.level = restore?.level ?? options.startLevel ?? 1;
     this.daily = restore?.daily ?? options.daily ?? false;
     this.difficulty = restore?.difficulty ?? options.difficulty ?? 'normal';
-    this.stats = restore ? structuredClone(restore.stats) : emptyStats(this.level);
+    // Older snapshots may miss newer stat fields.
+    this.stats = restore
+      ? { ...emptyStats(this.level), ...structuredClone(restore.stats) }
+      : emptyStats(this.level);
     const classIds = restore?.members.map((m) => m.classId) ?? options.party ?? TEAM.defaultParty;
     this.player = spawnPlayer(this, classIds, 0, 0);
     if (restore) this.restore(restore);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ACHIEVEMENTS } from '../src/data/achievements';
 import { ENEMIES } from '../src/data/enemies';
 import { Rng } from '../src/core/rng';
 import { DIFFICULTIES, difficultyFor } from '../src/data/dungeon';
@@ -45,8 +46,14 @@ describe('Difficulté', () => {
       stats,
       outcome: 'death' as const,
     };
-    const normal = recordRun(newMeta(), [], { ...base, difficulty: 'normal' }).shards;
-    const hard = recordRun(newMeta(), [], { ...base, difficulty: 'hard' }).shards;
+    const normal = recordRun({ ...newMeta(), achievements: ACHIEVEMENTS.map((a) => a.id) }, [], {
+      ...base,
+      difficulty: 'normal',
+    }).shards;
+    const hard = recordRun({ ...newMeta(), achievements: ACHIEVEMENTS.map((a) => a.id) }, [], {
+      ...base,
+      difficulty: 'hard',
+    }).shards;
     expect(hard).toBe(Math.round(normal * DIFFICULTIES.hard.rewards));
   });
 });

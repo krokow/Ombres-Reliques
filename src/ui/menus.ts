@@ -8,10 +8,13 @@ import {
   type DifficultyId,
 } from '../data/dungeon';
 import { META, UNLOCKS, UPGRADES } from '../data/meta';
+import { ACHIEVEMENTS } from '../data/achievements';
+import { ENEMIES, type EnemyId } from '../data/enemies';
 import type { RunStats } from '../game/runStats';
 import type { RunSnapshot } from '../game/snapshot';
 import { keyLabel } from '../input/keyLabels';
 import {
+  bestiaryIds,
   dailyChallenge,
   priceOf,
   unlockedClasses,
@@ -49,6 +52,8 @@ type Screen =
   | 'history'
   | 'controls'
   | 'options'
+  | 'bestiary'
+  | 'achievements'
   | 'pause'
   | 'victory'
   | 'end';
@@ -161,7 +166,9 @@ export class Menus {
         this.screen === 'sanctuary' ||
         this.screen === 'history' ||
         this.screen === 'controls' ||
-        this.screen === 'options'
+        this.screen === 'options' ||
+        this.screen === 'bestiary' ||
+        this.screen === 'achievements'
       )
         this.show('title');
     } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
@@ -259,6 +266,8 @@ export class Menus {
       history: () => this.history(),
       controls: () => this.controls(),
       options: () => this.options(),
+      bestiary: () => this.bestiary(),
+      achievements: () => this.achievementsScreen(),
       pause: () => this.pause(),
       victory: () => this.victory(),
       end: () => this.endPanel(),
@@ -295,7 +304,11 @@ export class Menus {
         <button data-action="new" class="${run || !save.settings.tutorialDone ? '' : 'mn-primary'}">Nouvelle run${run ? '<small>remplace la run en cours</small>' : ''}</button>
         <button data-action="daily">Défi du jour<small>${today} · Difficile · ${esc(teamLabel(daily.team))}${dailyDone ? ' · déjà récompensé' : ` · récompense ×${META.rewards.dailyMult}`}</small></button>
         <button data-action="screen" data-arg="sanctuary">Sanctuaire<small>déblocages et améliorations</small></button>
-        <button data-action="screen" data-arg="history">Historique</button>
+        <div class="mn-row-buttons">
+          <button data-action="screen" data-arg="history">Historique</button>
+          <button data-action="screen" data-arg="bestiary">Bestiaire</button>
+          <button data-action="screen" data-arg="achievements">Succès<small>${save.meta.achievements.length}/${ACHIEVEMENTS.length}</small></button>
+        </div>
         <div class="mn-row-buttons">
           <button data-action="screen" data-arg="controls">Commandes</button>
           <button data-action="screen" data-arg="options">Options</button>
@@ -445,6 +458,45 @@ export class Menus {
       <div class="mn-buttons mn-inline"><button data-action="screen" data-arg="title">Retour</button></div>`;
   }
 
+  private bestiary(): string {
+    const { bestiary } = this.host.save().meta;
+    const card = (id: EnemyId): string => {
+      const def = ENEMIES[id];
+      const kills = bestiary[id] ?? 0;
+      const known = kills > 0;
+      const boss = def.behavior === 'boss';
+      return `<div class="mn-beast${known ? '' : ' unknown'}${boss ? ' boss' : ''}">
+        <span class="mn-dot" style="--b:${def.palette.body};--t:${def.palette.eyes}"></span>
+        <div><strong>${known ? esc(def.name) : '???'}</strong><small>${known ? `${kills} vaincu${kills > 1 ? 's' : ''}` : 'jamais vaincu'}</small></div>
+      </div>`;
+    };
+    const regular = bestiaryIds(false);
+    const bosses = bestiaryIds(true);
+    const seen = [...regular, ...bosses].filter((id) => (bestiary[id] ?? 0) > 0).length;
+    return `
+      <h2>Bestiaire</h2>
+      <p class="mn-help">${seen} / ${regular.length + bosses.length} créatures vaincues.</p>
+      <h3>Créatures</h3><div class="mn-beasts">${regular.map(card).join('')}</div>
+      <h3>Gardiens et boss</h3><div class="mn-beasts">${bosses.map(card).join('')}</div>
+      <div class="mn-buttons mn-inline"><button data-action="screen" data-arg="title">Retour</button></div>`;
+  }
+
+  private achievementsScreen(): string {
+    const got = this.host.save().meta.achievements;
+    const rows = ACHIEVEMENTS.map((a) => {
+      const ok = got.includes(a.id);
+      return `<div class="mn-shop${ok ? '' : ' locked'}">
+        <div><strong>${ok ? '★' : '☆'} ${esc(a.name)}</strong><br /><small>${esc(a.desc)}</small></div>
+        <span class="mn-shards">◆ ${a.reward}</span>
+      </div>`;
+    }).join('');
+    return `
+      <h2>Succès</h2>
+      <p class="mn-help">${got.length} / ${ACHIEVEMENTS.length} — chaque succès rapporte des ${META.currency} une seule fois.</p>
+      ${rows}
+      <div class="mn-buttons mn-inline"><button data-action="screen" data-arg="title">Retour</button></div>`;
+  }
+
   private options(): string {
     const s = this.host.save().settings;
     const range = (key: 'sfxVolume' | 'musicVolume', label: string): string =>
@@ -508,6 +560,14 @@ export class Menus {
         <div><b>${Math.round(s.damageDealt)}</b>dégâts infligés</div><div><b>${Math.round(s.damageTaken)}</b>dégâts subis</div>
       </div>
       <p class="mn-reward">+ ◆ ${e.record.shards} ${META.currency}${e.record.daily && e.record.shards === 0 ? ' (défi du jour déjà récompensé)' : ''} · total ${this.host.save().meta.shards}</p>
+      ${(e.record.achievements ?? [])
+        .map((id) => {
+          const a = ACHIEVEMENTS.find((x) => x.id === id);
+          return a
+            ? `<p class="mn-achievement">★ Succès : ${esc(a.name)} <span class="mn-shards">+◆ ${a.reward}</span></p>`
+            : '';
+        })
+        .join('')}
       <p class="mn-help">Seed ${esc(e.record.seed)} · ${esc(teamLabel(e.record.team))}</p>
       <div class="mn-buttons mn-inline">
         <button data-action="screen" data-arg="title">Titre</button>

@@ -13,6 +13,8 @@ export interface RunStats {
   goldEarned: number;
   deepestFloor: number;
   victory: boolean;
+  /** Enemy id → kills this run (bestiary). */
+  killsByEnemy: Record<string, number>;
 }
 
 export function emptyStats(level = 1): RunStats {
@@ -27,6 +29,7 @@ export function emptyStats(level = 1): RunStats {
     goldEarned: 0,
     deepestFloor: level,
     victory: false,
+    killsByEnemy: {},
   };
 }
 
@@ -37,6 +40,7 @@ export function trackEvent(stats: RunStats, ev: GameEvent, player: Entity): void
       if (!ev.byPlayer) return;
       stats.kills++;
       if (ev.elite) stats.elites++;
+      stats.killsByEnemy[ev.kind] = (stats.killsByEnemy[ev.kind] ?? 0) + 1;
       return;
     // Beating the guardian of the room is what counts (champion packs included).
     case 'roomCleared':
