@@ -11,6 +11,7 @@ import type { Entity } from '../ecs/world';
 import { spawnEnemy } from '../game/factories';
 import type { Sim } from '../game/sim';
 import { shapeHitsCircle } from './combatMath';
+import { onEncounterStart, onRoomCleared, tickFloorEvents, type FloorEventState } from './events';
 
 export interface RoomState {
   visited: boolean;
@@ -30,6 +31,8 @@ export interface DungeonState {
   descendRequested: boolean;
   /** The run's final boss has been beaten (endless mode from here, choice 2b). */
   victory: boolean;
+  /** Random events of this floor (see systems/events). */
+  events: FloorEventState[];
 }
 
 export function createDungeonState(floor: Floor): DungeonState {
@@ -47,6 +50,7 @@ export function createDungeonState(floor: Floor): DungeonState {
     stairs: null,
     descendRequested: false,
     victory: false,
+    events: [],
   };
 }
 
@@ -170,12 +174,12 @@ export function revealAll(d: DungeonState): void {
   d.exploredVersion++;
 }
 
-function setDoors(sim: Sim, room: Room, tile: Tile): void {
+export function setDoors(sim: Sim, room: Room, tile: Tile): void {
   for (const door of room.doors) sim.map.set(door.tx, door.ty, tile);
 }
 
 /** Pushes bodies standing in door tiles into the room before the doors close. */
-function evictFromDoors(sim: Sim, floor: Floor, room: Room): void {
+export function evictFromDoors(sim: Sim, floor: Floor, room: Room): void {
   const s = sim.map.tileSize;
   for (const [, t, b] of sim.world.query('transform', 'body')) {
     const blocked = room.doors.some(
@@ -192,10 +196,14 @@ function evictFromDoors(sim: Sim, floor: Floor, room: Room): void {
   }
 }
 
-function startEncounter(sim: Sim, d: DungeonState, room: Room, level: number): void {
-  const state = d.rooms[room.id];
-  if (!state) return;
-  state.active = true;
+/** Spawns a list of enemies spread over the room, away from the player. */
+export function spawnWave(
+  sim: Sim,
+  d: DungeonState,
+  room: Room,
+  list: readonly EncounterSpawn[],
+  level: number,
+): void {
   const pt = sim.world.req(sim.player, 'transform');
   const { map } = sim;
   const s = map.tileSize;
@@ -218,7 +226,6 @@ function startEncounter(sim: Sim, d: DungeonState, room: Room, level: number): v
   }
   if (spots.length === 0) spots.push(map.tileCenter(room.center.tx, room.center.ty));
   sim.rng.spawn.shuffle(spots);
-  const list = rollEncounter(sim.rng.spawn, d.floor, room, sim.difficulty);
   list.forEach((spec, i) => {
     const spot = spots[i % spots.length];
     if (!spot) return;
@@ -226,18 +233,30 @@ function startEncounter(sim: Sim, d: DungeonState, room: Room, level: number): v
     sim.world.add(e, 'encounter', { room: room.id });
     if (spec.champion) sim.world.add(e, 'champion', { name: spec.champion });
   });
+}
+
+function startEncounter(sim: Sim, d: DungeonState, room: Room, level: number): void {
+  const state = d.rooms[room.id];
+  if (!state) return;
+  state.active = true;
+  const list = rollEncounter(sim.rng.spawn, d.floor, room, sim.difficulty);
+  spawnWave(sim, d, room, list, level);
+  onEncounterStart(sim, d, room, level);
   // Design 2c: only mini-boss and boss rooms lock their doors.
   if (room.type === 'miniboss' || room.type === 'boss') {
     evictFromDoors(sim, d.floor, room);
     setDoors(sim, room, Tile.DoorClosed);
     sim.events.push({ type: 'doorsLocked', room: room.id });
   }
-  if (list.length === 0) finishEncounter(sim, d, room);
+  if (list.length === 0 && !sim.world.query('encounter').some(([, enc]) => enc.room === room.id))
+    finishEncounter(sim, d, room);
 }
 
 function finishEncounter(sim: Sim, d: DungeonState, room: Room): void {
   const state = d.rooms[room.id];
   if (!state) return;
+  // A floor event may keep the fight going (ambush wave…).
+  if (onRoomCleared(sim, d, room, sim.level)) return;
   state.active = false;
   state.cleared = true;
   if (room.type === 'miniboss' || room.type === 'boss') setDoors(sim, room, Tile.DoorOpen);
@@ -300,6 +319,7 @@ export function updateDungeon(sim: Sim, d: DungeonState, level: number): void {
     startEncounter(sim, d, room, level);
   }
 
+  tickFloorEvents(sim, d);
   for (const r of d.floor.rooms) {
     const st = d.rooms[r.id];
     if (!st?.active) continue;

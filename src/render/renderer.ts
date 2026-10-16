@@ -488,6 +488,11 @@ export class Renderer {
     }
     for (const [, it, t] of w.query('interactable', 'transform')) {
       if (it.kind === 'chest' && it.opened) continue;
+      if (it.kind === 'fountain') {
+        if (!it.used)
+          out.push({ x: t.x, y: t.y, radius: 110, intensity: 0.7, glow: '95, 212, 255' });
+        continue;
+      }
       out.push({ x: t.x, y: t.y, ...LIGHTS.loot, glow: null });
     }
     for (const [, pk, t] of w.query('pickup', 'transform')) {
@@ -1146,6 +1151,27 @@ export class Renderer {
           ctx.fillStyle = '#ffd34d';
           ctx.fillText(`${it.price}`, x, y + 18);
         }
+      } else if (it.kind === 'fountain') {
+        // Stone basin; the water glows until someone drinks.
+        ctx.fillStyle = '#4a4658';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 18, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = it.used ? '#2a2836' : '#5fd4ff';
+        ctx.globalAlpha = it.used ? 1 : 0.65 + Math.sin(this.time * 3) * 0.2;
+        ctx.beginPath();
+        ctx.ellipse(x, y - 1, 13, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        if (!it.used) {
+          ctx.fillStyle = '#e6fbff';
+          for (let i = 0; i < 3; i++) {
+            const k = (this.time * 0.8 + i / 3) % 1;
+            ctx.globalAlpha = 1 - k;
+            ctx.fillRect(x - 6 + i * 6, y - 4 - k * 14, 2, 2);
+          }
+          ctx.globalAlpha = 1;
+        }
       } else {
         ctx.fillStyle = '#4a3a5e';
         ctx.fillRect(x - 16, y - 6, 32, 14);
@@ -1253,7 +1279,9 @@ export class Renderer {
           ? `${key} : ouvrir${it.locked ? ' (1 clé)' : ''}`
           : it.kind === 'shop'
             ? `${key} : acheter (${it.price} or)`
-            : `${key} : prier`;
+            : it.kind === 'fountain'
+              ? `${key} : boire (risqué)`
+              : `${key} : prier`;
     }
     if (!text) return;
     ctx.font = 'bold 10px ui-monospace, Menlo, monospace';

@@ -111,6 +111,8 @@ export class Sfx {
         return this.play(ev.byPlayer ? (ev.crit ? 'crit' : 'hit') : 'hurt');
       case 'veil':
         return this.play('veil');
+      case 'floorEvent':
+        return this.play(ev.kind === 'ambush' || ev.kind === 'mimic' ? 'doors' : 'secret');
       case 'guardBlock':
         return this.play('block');
       case 'enemyHeal':

@@ -135,5 +135,12 @@ export type GameEvent =
   | { type: 'tutorialStep'; step: number }
   | { type: 'tutorialDone' }
   | { type: 'enemyHeal'; x: number; y: number; radius: number }
+  | {
+      type: 'floorEvent';
+      kind: import('../data/events').FloorEventKind;
+      x: number;
+      y: number;
+      text: string;
+    }
   | { type: 'burrow'; x: number; y: number }
   | { type: 'guardBlock'; x: number; y: number; angle: number };

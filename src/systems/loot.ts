@@ -1,3 +1,4 @@
+import { triggerMimic, useFountain } from './events';
 import type { Rng } from '../core/rng';
 import { enemyDef } from '../data/enemies';
 import {
@@ -257,7 +258,12 @@ export function nearestInteractable(sim: Sim): Entity | null {
   let best: Entity | null = null;
   let bestD: number = LOOT.interactRadius;
   for (const [e, it, t] of sim.world.query('interactable', 'transform')) {
-    if ((it.kind === 'chest' && it.opened) || (it.kind === 'shop' && it.sold)) continue;
+    if (
+      (it.kind === 'chest' && it.opened) ||
+      (it.kind === 'shop' && it.sold) ||
+      (it.kind === 'fountain' && it.used)
+    )
+      continue;
     const d = Math.hypot(t.x - pt.x, t.y - pt.y);
     if (d <= bestD) {
       bestD = d;
@@ -348,6 +354,15 @@ export function interact(sim: Sim): void {
   const fail = (reason: string): void => {
     sim.events.push({ type: 'interactFail', x: t.x, y: t.y, reason });
   };
+  if (it.kind === 'fountain') {
+    if (it.used) return fail('La fontaine est tarie');
+    useFountain(sim, e);
+    return;
+  }
+  if (it.kind === 'chest' && it.mimic) {
+    triggerMimic(sim, e);
+    return;
+  }
   if (it.kind === 'chest') {
     if (it.locked) {
       if (p.keys <= 0) return fail('Il faut une clé');

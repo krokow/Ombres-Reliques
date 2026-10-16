@@ -507,6 +507,17 @@ export class Effects {
           this.burst(ev.x, ev.y, 5, '#ffd0a8', 120, 0.2, ev.angle, 0.6, true);
         }
         break;
+      case 'floorEvent':
+        this.banner = { text: ev.text, life: 2.4, maxLife: 2.4 };
+        this.rings.push({
+          x: ev.x,
+          y: ev.y,
+          radius: 60,
+          color: '#ffd34d',
+          life: 0.5,
+          maxLife: 0.5,
+        });
+        break;
       case 'enemyHeal':
         this.rings.push({
           x: ev.x,

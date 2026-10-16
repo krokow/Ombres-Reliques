@@ -178,7 +178,8 @@ export type ShopOffer =
 
 /** Props the player uses with E. */
 export type Interactable =
-  | { kind: 'chest'; locked: boolean; opened: boolean; room: number }
+  | { kind: 'chest'; locked: boolean; opened: boolean; room: number; mimic?: boolean }
+  | { kind: 'fountain'; used: boolean; room: number }
   | { kind: 'shop'; offer: ShopOffer; price: number; sold: boolean; room: number }
   | { kind: 'altar'; used: boolean; room: number };
 

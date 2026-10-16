@@ -223,6 +223,17 @@ export class Hud {
       ctx.fillText(c.name, width / 2, 32);
     }
 
+    // Rift countdown (floor event).
+    const rift = game.dungeon?.events.find((ev) => ev.kind === 'rift' && ev.phase === 'active');
+    if (rift) {
+      const secs = Math.ceil(rift.timer / 60);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `bold 14px ${FONT}`;
+      ctx.fillStyle = secs <= 10 ? '#ff4d6d' : '#c77dff';
+      ctx.fillText(`Faille : ${secs} s`, width / 2, champ ? 62 : 34);
+    }
+
     if (fx.ultFlash > 0) {
       ctx.fillStyle = `rgba(10, 0, 20, ${fx.ultFlash})`;
       ctx.fillRect(0, 0, width, height);
