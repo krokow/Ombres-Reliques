@@ -1,4 +1,4 @@
-import { moveAndCollide } from '../core/tilemap';
+import { findFreeSpot, isFree, moveAndCollide } from '../core/tilemap';
 import { COMBAT } from '../data/combat';
 import type { GameWorld, Velocity } from '../ecs/components';
 import type { Sim } from '../game/sim';
@@ -85,14 +85,17 @@ export function separateBodies(sim: Sim): void {
       const nx = d2 > 0 ? dx / d : 1;
       const ny = d2 > 0 ? dy / d : 0;
       const overlap = (min - d) * COMBAT.separationStrength;
-      const total = ba.weight + bb.weight;
+      // The player is never the one squeezed: a crowd can't pin them into a corner.
+      const wa = a[0] === sim.player ? ba.weight * COMBAT.playerShoveFactor : ba.weight;
+      const wb = b[0] === sim.player ? bb.weight * COMBAT.playerShoveFactor : bb.weight;
+      const total = wa + wb;
       const pa = moveAndCollide(
         map,
         ta.x,
         ta.y,
         ba.radius,
-        (-nx * overlap * bb.weight) / total,
-        (-ny * overlap * bb.weight) / total,
+        (-nx * overlap * wb) / total,
+        (-ny * overlap * wb) / total,
       );
       ta.x = pa.x;
       ta.y = pa.y;
@@ -101,11 +104,39 @@ export function separateBodies(sim: Sim): void {
         tb.x,
         tb.y,
         bb.radius,
-        (nx * overlap * ba.weight) / total,
-        (ny * overlap * ba.weight) / total,
+        (nx * overlap * wa) / total,
+        (ny * overlap * wa) / total,
       );
       tb.x = pb.x;
       tb.y = pb.y;
     }
+  }
+}
+
+/**
+ * Safety net run after all movement: no solid body may end a tick inside a
+ * wall or outside the map, whatever put it there (teleport, switch to a
+ * wider hero, push, bug). Nudge it out if it's barely in; otherwise send it
+ * back to its last clear position.
+ */
+export function keepBodiesFree(sim: Sim): void {
+  const { world, map } = sim;
+  const tile = map.tileSize;
+  for (const [, t, b] of world.query('transform', 'body')) {
+    if (!b.solid) continue;
+    const r = b.radius;
+    const inMap = t.x >= 0 && t.y >= 0 && t.x < map.width * tile && t.y < map.height * tile;
+    if (inMap && isFree(map, t.x, t.y, r)) {
+      b.safeX = t.x;
+      b.safeY = t.y;
+      continue;
+    }
+    let spot = inMap ? findFreeSpot(map, t.x, t.y, r, tile) : null;
+    if (!spot && b.safeX !== undefined && b.safeY !== undefined && isFree(map, b.safeX, b.safeY, r))
+      spot = { x: b.safeX, y: b.safeY };
+    spot ??= findFreeSpot(map, t.x, t.y, r, tile * 6);
+    if (!spot) continue;
+    t.x = t.prevX = spot.x;
+    t.y = t.prevY = spot.y;
   }
 }

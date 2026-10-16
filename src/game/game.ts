@@ -22,7 +22,12 @@ import {
   updateDungeon,
   type DungeonState,
 } from '../systems/dungeon';
-import { integrateMotion, separateBodies, snapshotTransforms } from '../systems/movement';
+import {
+  integrateMotion,
+  keepBodiesFree,
+  separateBodies,
+  snapshotTransforms,
+} from '../systems/movement';
 import { FlowField } from '../systems/navigation';
 import { kitFor } from '../systems/kits';
 import { activeClass, playerBuffer, playerMove } from '../systems/player';
@@ -183,6 +188,7 @@ export class Game implements Sim {
     updateAllies(this);
     integrateMotion(this);
     separateBodies(this);
+    keepBodiesFree(this);
     resolveHitboxes(this);
     if (this.dungeon) breakCrackedWalls(this, this.dungeon);
     updateProjectiles(this);
@@ -192,6 +198,8 @@ export class Game implements Sim {
     updatePickups(this);
     if (this.dungeon) updateDungeon(this, this.dungeon, this.level);
     this.world.flush();
+    // Things spawned late in the tick (loot, summons) get the same guarantee.
+    keepBodiesFree(this);
     for (let i = before; i < this.events.length; i++) {
       const ev = this.events[i];
       if (ev) trackEvent(this.stats, ev, this.player);

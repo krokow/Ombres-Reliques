@@ -7,6 +7,8 @@ export const COMBAT = {
   /** Exponential decay rate (1/s) of knockback velocity. */
   knockbackFriction: 9,
   /** Strength of the soft push between overlapping bodies. */
+  /** Player weight multiplier in body separation (crowds yield to the player). */
+  playerShoveFactor: 4,
   separationStrength: 0.5,
 } as const;
 

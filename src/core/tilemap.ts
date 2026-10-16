@@ -123,6 +123,36 @@ export class TileMap {
   }
 }
 
+/** True if a square body (half-extent `half`) centred at (x, y) touches no solid tile. */
+export function isFree(map: TileMap, x: number, y: number, half: number): boolean {
+  return !map.rectOverlapsSolid(x - half, y - half, x + half, y + half);
+}
+
+/**
+ * Nearest position (searched on growing rings, deterministic order) where the
+ * body fits, within `maxDist`; null if there is none.
+ */
+export function findFreeSpot(
+  map: TileMap,
+  x: number,
+  y: number,
+  half: number,
+  maxDist: number,
+): { x: number; y: number } | null {
+  if (isFree(map, x, y, half)) return { x, y };
+  const step = Math.max(2, half / 2);
+  for (let r = step; r <= maxDist; r += step) {
+    const n = Math.max(8, Math.ceil((Math.PI * 2 * r) / step));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const px = x + Math.cos(a) * r;
+      const py = y + Math.sin(a) * r;
+      if (isFree(map, px, py, half)) return { x: px, y: py };
+    }
+  }
+  return null;
+}
+
 export interface MoveResult {
   x: number;
   y: number;
@@ -150,6 +180,15 @@ export function moveAndCollide(
   const s = map.tileSize;
   let hitX = false;
   let hitY = false;
+  // Already overlapping a wall (radius change, teleport…): step out first,
+  // otherwise every axis test fails and the body is stuck for good.
+  if (!isFree(map, x, y, half)) {
+    const out = findFreeSpot(map, x, y, half, half * 3);
+    if (out) {
+      x = out.x;
+      y = out.y;
+    }
+  }
 
   for (let i = 0; i < steps; i++) {
     if (sx !== 0 && !hitX) {

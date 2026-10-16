@@ -6,8 +6,10 @@ export class DebugOverlay {
   private readonly console: HTMLDivElement;
   private readonly log: HTMLDivElement;
   private readonly input: HTMLInputElement;
+  private readonly fps: HTMLDivElement;
   private lastText = '';
-  visible = true;
+  /** Full debug panel (F3); off by default, only the FPS counter shows. */
+  visible = false;
   showHitboxes = false;
 
   constructor(
@@ -15,7 +17,9 @@ export class DebugOverlay {
     private readonly commands: CommandRegistry,
   ) {
     this.panel = document.createElement('div');
-    this.panel.className = 'debug-overlay';
+    this.panel.className = 'debug-overlay hidden';
+    this.fps = document.createElement('div');
+    this.fps.className = 'debug-fps';
     this.console = document.createElement('div');
     this.console.className = 'debug-console hidden';
     this.log = document.createElement('div');
@@ -24,7 +28,7 @@ export class DebugOverlay {
     this.input.placeholder = 'commande… (help)';
     this.input.spellcheck = false;
     this.console.append(this.log, this.input);
-    root.append(this.panel, this.console);
+    root.append(this.panel, this.fps, this.console);
 
     // Opened straight from the keydown (not on the next frame) so no typed char is lost.
     window.addEventListener('keydown', (e) => {
@@ -55,6 +59,12 @@ export class DebugOverlay {
   toggle(): void {
     this.visible = !this.visible;
     this.panel.classList.toggle('hidden', !this.visible);
+    this.fps.classList.toggle('hidden', this.visible);
+  }
+
+  setFps(fps: number): void {
+    const text = `${Math.round(fps)} FPS`;
+    if (this.fps.textContent !== text) this.fps.textContent = text;
   }
 
   toggleConsole(): void {

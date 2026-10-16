@@ -1,5 +1,5 @@
 import { SUMMONER as DEF } from '../../data/classes';
-import { moveAndCollide } from '../../core/tilemap';
+import { findFreeSpot, moveAndCollide } from '../../core/tilemap';
 import type { InputFrame } from '../../game/inputFrame';
 import type { Sim } from '../../game/sim';
 import type { Entity } from '../../ecs/world';
@@ -72,8 +72,11 @@ function swap(sim: Sim, input: InputFrame): void {
       dir.y * DEF.swap.blinkDistance,
     );
   }
-  t.x = t.prevX = to.x;
-  t.y = t.prevY = to.y;
+  // A wisp is smaller than the summoner: make sure the body fits where it lands.
+  const fit = findFreeSpot(sim.map, to.x, to.y, w.req(sim.player, 'body').radius, 48) ?? from;
+  t.x = t.prevX = fit.x;
+  t.y = t.prevY = fit.y;
+  to = fit;
   const h = w.req(sim.player, 'health');
   h.invuln = Math.max(h.invuln, DEF.swap.invulnTicks);
   sim.events.push({ type: 'blink', fromX: from.x, fromY: from.y, toX: to.x, toY: to.y });

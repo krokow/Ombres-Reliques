@@ -37,7 +37,7 @@ export function defaultSettings(): Settings {
   return {
     muted: false,
     sfxVolume: 0.8,
-    musicVolume: 0.5,
+    musicVolume: 0.35,
     shake: true,
     hints: true,
     hintsSeen: [],

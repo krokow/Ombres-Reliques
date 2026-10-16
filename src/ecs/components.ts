@@ -35,6 +35,9 @@ export interface Body {
   pushable: boolean;
   /** Divides received knockback. */
   weight: number;
+  /** Last position where the body was clear of walls (stuck-in-wall rescue). */
+  safeX?: number;
+  safeY?: number;
 }
 
 export interface Facing {

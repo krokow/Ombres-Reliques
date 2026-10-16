@@ -5,25 +5,24 @@ type ThemeId = keyof typeof MUSIC;
 const semitone = (root: number, n: number): number => root * 2 ** (n / 12);
 
 /**
- * Procedural ambient music: a filtered drone and a sparse plucked arpeggio,
- * scheduled slightly ahead of time on the shared AudioContext. Notes come
- * from a fixed-seed LCG (no Math.random), so a theme always "composes" the
- * same way.
+ * Procedural ambient music: overlapping pad chords with slow attacks, a few
+ * soft bell notes taken from the chord (always consonant), scheduled a bit
+ * ahead on the shared AudioContext. Fixed-seed LCG, no Math.random.
  */
 export class Music {
   private out: GainNode | null = null;
-  private drone: { oscs: OscillatorNode[]; gain: GainNode; filter: BiquadFilterNode } | null = null;
+  /** Theme currently scheduled, and the one asked for. */
   private theme: ThemeId | null = null;
   private wanted: ThemeId = 'title';
-  private nextStep = 0;
-  private step = 0;
+  private nextChord = 0;
+  private chord = 0;
   private seed = 1;
-  private volume = 0.5;
+  private volume = 0.35;
   private muted = false;
   private intensity = 0;
 
   constructor(private readonly ctx: () => AudioContext | null) {
-    window.setInterval(() => this.tick(), 100);
+    window.setInterval(() => this.tick(), 200);
   }
 
   play(theme: ThemeId): void {
@@ -49,7 +48,7 @@ export class Music {
     const ctx = this.ctx();
     if (!ctx || !this.out) return;
     const level = this.muted ? 0 : MUSIC_MIX.level * this.volume;
-    this.out.gain.setTargetAtTime(level, ctx.currentTime, 0.3);
+    this.out.gain.setTargetAtTime(level, ctx.currentTime, 0.4);
   }
 
   private rand(): number {
@@ -63,116 +62,139 @@ export class Music {
     if (!this.out) {
       this.out = ctx.createGain();
       this.out.gain.value = 0;
-      // A short feedback delay gives the plucks some space.
-      const delay = ctx.createDelay(1);
-      delay.delayTime.value = 0.33;
-      const fb = ctx.createGain();
-      fb.gain.value = 0.35;
-      this.out.connect(ctx.destination);
-      this.out.connect(delay);
-      delay.connect(fb);
-      fb.connect(delay);
-      delay.connect(ctx.destination);
+      // Gentle low-pass on the whole mix: nothing shrill, ever.
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 2400;
+      this.out.connect(tone);
+      tone.connect(ctx.destination);
       this.applyLevel();
     }
-    if (this.theme !== this.wanted) this.switchTheme(ctx, this.wanted);
-    const theme = this.theme ? MUSIC[this.theme] : null;
-    if (!theme) return;
-    const stepDur = 60 / theme.bpm;
-    if (this.nextStep < ctx.currentTime) this.nextStep = ctx.currentTime + 0.05;
-    while (this.nextStep < ctx.currentTime + 0.3) {
-      this.scheduleStep(ctx, theme, this.nextStep, stepDur);
-      this.nextStep += stepDur;
-      this.step++;
+    if (this.theme !== this.wanted) {
+      // New theme: start on its first chord, after a short gap for the old pads to fade.
+      this.theme = this.wanted;
+      this.chord = 0;
+      this.seed = this.theme.length * 7919 + 1;
+      this.nextChord = Math.max(this.nextChord, ctx.currentTime + 0.3);
+    }
+    const theme = MUSIC[this.theme];
+    while (this.nextChord < ctx.currentTime + 0.5) {
+      this.scheduleChord(ctx, theme, this.nextChord);
+      this.nextChord += theme.chordSeconds;
+      this.chord++;
     }
   }
 
-  private switchTheme(ctx: AudioContext, id: ThemeId): void {
+  private scheduleChord(ctx: AudioContext, theme: MusicTheme, t: number): void {
     const out = this.out;
     if (!out) return;
-    const t = ctx.currentTime;
-    if (this.drone) {
-      const old = this.drone;
-      old.gain.gain.setTargetAtTime(0, t, MUSIC_MIX.fade / 3);
-      for (const o of old.oscs) o.stop(t + MUSIC_MIX.fade * 2);
+    const notes = theme.chords[this.chord % theme.chords.length] ?? [0];
+    const dur = theme.chordSeconds;
+    // Pad: each chord tone as two slightly detuned soft voices, long fade in/out.
+    for (const n of notes) {
+      for (const detune of [-5, 5]) {
+        this.voice(
+          ctx,
+          out,
+          'triangle',
+          semitone(theme.root, n),
+          detune,
+          t,
+          dur * 1.35,
+          0.07,
+          dur * 0.4,
+          theme.warmth,
+        );
+      }
     }
-    const theme = MUSIC[id];
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    gain.gain.setTargetAtTime(0.5, t, MUSIC_MIX.fade / 3);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = theme.warmth;
-    filter.connect(gain);
-    gain.connect(out);
-    const oscs = [0, 7, 12].map((n, i) => {
-      const o = ctx.createOscillator();
-      o.type = i === 0 ? 'sawtooth' : 'triangle';
-      o.frequency.value = semitone(theme.root, n);
-      o.detune.value = (i - 1) * 6;
-      o.connect(filter);
-      o.start(t);
-      return o;
-    });
-    // Slow breathing on the filter.
-    const lfo = ctx.createOscillator();
-    const depth = ctx.createGain();
-    lfo.frequency.value = 0.07;
-    depth.gain.value = theme.warmth * 0.4;
-    lfo.connect(depth);
-    depth.connect(filter.frequency);
-    lfo.start(t);
-    oscs.push(lfo);
-    this.drone = { oscs, gain, filter };
-    this.theme = id;
-    this.seed = id.length * 7919 + 1;
-    this.step = 0;
-  }
-
-  private scheduleStep(ctx: AudioContext, theme: MusicTheme, t: number, dur: number): void {
-    const out = this.out;
-    if (!out) return;
-    // Combat pulse on the root, every other step.
-    if (this.intensity > 0 && this.step % 2 === 0) {
-      this.pluck(
+    // Bass: the chord root an octave down.
+    this.voice(
+      ctx,
+      out,
+      'sine',
+      semitone(theme.root, (notes[0] ?? 0) - 12),
+      0,
+      t,
+      dur * 1.2,
+      0.12,
+      1.2,
+      400,
+    );
+    // A few bell notes from the chord, an octave or two up.
+    for (let beat = 0; beat < 4; beat++) {
+      if (this.rand() > theme.bellChance) continue;
+      const n = notes[Math.floor(this.rand() * notes.length)] ?? 0;
+      const up = this.rand() < 0.5 ? 12 : 24;
+      this.voice(
         ctx,
         out,
-        'square',
-        semitone(theme.root, 12),
-        t,
-        dur * 0.4,
-        0.05 * this.intensity * MUSIC_MIX.combatPulse,
+        'sine',
+        semitone(theme.root, n + up),
+        0,
+        t + (beat * dur) / 4,
+        2.2,
+        0.05,
+        0.01,
+        3000,
       );
     }
-    if (this.rand() > theme.density) return;
-    const n = theme.scale[Math.floor(this.rand() * theme.scale.length)] ?? 0;
-    const octave = this.rand() < 0.3 ? 24 : 12;
-    this.pluck(ctx, out, theme.lead, semitone(theme.root, n + octave), t, dur * 1.8, 0.09);
+    // Sealed-room fight: a soft heartbeat on the low root.
+    if (this.intensity > 0) {
+      const beats = Math.round(dur / 0.75);
+      for (let i = 0; i < beats; i++) {
+        this.thump(
+          ctx,
+          out,
+          semitone(theme.root, -12),
+          t + i * 0.75,
+          0.25 * this.intensity * MUSIC_MIX.combatPulse,
+        );
+      }
+    }
   }
 
-  private pluck(
+  private voice(
     ctx: AudioContext,
     out: AudioNode,
     type: OscillatorType,
     freq: number,
+    detune: number,
     t: number,
     dur: number,
     peak: number,
+    attack: number,
+    cutoff: number,
   ): void {
     const o = ctx.createOscillator();
-    const g = ctx.createGain();
     const f = ctx.createBiquadFilter();
+    const g = ctx.createGain();
     o.type = type;
     o.frequency.value = freq;
+    o.detune.value = detune;
     f.type = 'lowpass';
-    f.frequency.value = 1800;
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + 0.02);
+    f.frequency.value = cutoff;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.max(0.01, attack));
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(f);
     f.connect(g);
     g.connect(out);
     o.start(t);
     o.stop(t + dur + 0.05);
+  }
+
+  private thump(ctx: AudioContext, out: AudioNode, freq: number, t: number, peak: number): void {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 2, t);
+    o.frequency.exponentialRampToValueAtTime(freq, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g);
+    g.connect(out);
+    o.start(t);
+    o.stop(t + 0.4);
   }
 }

@@ -56,7 +56,7 @@ export class Hints {
   }
 
   /** Polled conditions (state, not events) + display timing. */
-  update(game: Game | null, dt: number, paused: boolean): void {
+  update(game: Game | null, dt: number, paused: boolean, covered = false): void {
     if (game && !paused && game.mode === 'dungeon') {
       const w = game.world;
       const h = w.req(game.player, 'health');
@@ -81,7 +81,9 @@ export class Hints {
       this.saves.write();
       this.root.innerHTML = `<span class="hint-tag">Astuce</span> ${escapeHtml(withKeys(HINTS[id]))}`;
     }
-    const visible = this.current !== null && game !== null;
+    // Covered by an in-game panel: the tip waits (its timer too) instead of overlapping.
+    if (covered && this.current) this.current.left += dt;
+    const visible = this.current !== null && game !== null && !covered;
     this.root.classList.toggle('hidden', !visible);
     this.root.classList.toggle('fading', visible && (this.current?.left ?? 0) < 0.6);
   }

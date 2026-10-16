@@ -152,9 +152,20 @@
 - **Audio** : musique procédurale (drone filtré + arpège clairsemé, gammes par biome dans
   `data/music.ts`, pulsation ajoutée pendant les combats à portes scellées), LCG fixe pour les notes.
   Volumes effets/musique séparés.
+- **Jamais coincé dans un mur** : `moveAndCollide` sort d'abord un corps qui chevauche déjà un mur
+  (sinon chaque axe échoue et il reste figé) ; un héros plus large qui entre en jeu contre un mur est
+  replacé ; l'Échange de l'Invocateur vérifie que le corps tient à l'arrivée ; et un filet de sécurité
+  (`keepBodiesFree`, deux fois par tick) ramène tout corps hors d'un mur ou de la carte vers la place
+  libre la plus proche ou sa dernière position sûre. Dans la séparation des corps, la foule cède devant
+  le joueur (poids ×4) : on ne peut plus être écrasé dans un coin. Test de stress : un bot chaotique
+  sur plusieurs étages, toutes classes, vérifié à chaque tick.
+- **Musique (v2)** : la première version (drone en dent de scie + arpège aléatoire) était désagréable ;
+  remplacée par des nappes d'accords douces (triangle/sinus, attaques lentes), une basse et quelques
+  notes de cloche prises dans l'accord, progressions par biome dans `data/music.ts`, niveau bas.
 - **Particules d'ambiance** par biome (poussière, spores, braises), position = fonction pure de
   l'indice et du temps, ancrées au monde.
-- **Accessibilité** : tremblements de caméra désactivables.
+- **Accessibilité** : tremblements de caméra désactivables. L'overlay debug est masqué par défaut
+  (seul un petit compteur FPS reste), F3 l'affiche.
 - **Équilibrage par sonde** (`tools/balance.ts`) : un bot naïf (pas d'esquive, ni talents ni objets)
   affronte chaque boss à son étage avec chaque classe seule ; le test garde-fou exige une victoire en
   < 3 min et un écart < 2× entre classes. La sonde a révélé un vrai bug : les gros corps restaient

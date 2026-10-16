@@ -470,7 +470,8 @@ runLoop(clock, {
     const g = game;
     const dt = Math.min(frameMs, 100) / 1000;
     fps.frame(frameMs);
-    hints.update(g, dt, menus.pausesGame);
+    debug.setFps(fps.fps);
+    hints.update(g, dt, menus.pausesGame, progressPanel.open);
     tutorialPanel.update(g);
     music.play(!g || menus.current === 'title' ? 'title' : g.biome);
     if (!g) {

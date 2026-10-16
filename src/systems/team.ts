@@ -1,4 +1,5 @@
 import { CLASSES } from '../data/classes';
+import { findFreeSpot } from '../core/tilemap';
 import { TEAM } from '../data/team';
 import type { Character, Party } from '../ecs/components';
 import type { Sim } from '../game/sim';
@@ -38,6 +39,13 @@ export function install(sim: Sim, index: number): void {
   const body = w.req(e, 'body');
   body.radius = def.radius;
   body.weight = def.weight;
+  // A wider hero arriving against a wall must not start inside it.
+  const t = w.req(e, 'transform');
+  const fit = findFreeSpot(sim.map, t.x, t.y, def.radius, sim.map.tileSize * 2);
+  if (fit) {
+    t.x = t.prevX = fit.x;
+    t.y = t.prevY = fit.y;
+  }
   w.add(e, 'mover', { ...def.mover });
   w.req(e, 'renderable').kind = m.classId;
 }
