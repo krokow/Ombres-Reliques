@@ -916,3 +916,9 @@ kbd {
   color: #ffd34d;
   font-size: 13px;
 }
+
+.mn-card button:focus-visible,
+.mn-card button:focus {
+  outline: 2px solid #ffd34d;
+  outline-offset: 2px;
+}

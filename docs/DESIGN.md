@@ -196,6 +196,28 @@
   butin) + halos additifs teintés. Désactivable dans les Options.
 - Un ennemi pris dans une explosion neutre n'affiche plus l'effet « joueur blessé ».
 
+## Contenu (après M9)
+
+- **Ennemis** : 3 nouveaux comportements data-driven (`ai/advanced.ts`) et 2 traits génériques
+  (`frontGuard`, `splitInto` dans `data/enemies.ts`). Chaque menace se lit et se contre : le Spectre
+  errant scintille là où il va apparaître (dans ton dos : se retourner) ; le Fouisseur est intouchable
+  sous terre (même par les dégâts de zone, `isUntargetable`) puis reste exposé ; le Porte-pavois
+  bloque de face (le contourner, ou l'étourdir : il baisse sa garde) ; la Prêtresse ne soigne que si
+  un allié est blessé, et son incantation s'interrompt ; la Gelée se divise en gouttes qui gardent la
+  rencontre de la salle (la porte ne s'ouvre pas avant la dernière).
+- **Événements d'étage** (`data/events.ts`, `systems/events.ts`) : 1 à 2 par étage, tirés sur le flux
+  `loot` au chargement (donc identiques à la reprise d'une sauvegarde). Ils se branchent sur deux
+  crochets des rencontres — début de combat et salle vidée — qui peuvent prolonger le combat
+  (embuscade, mimique, fontaine gardée).
+- **Pièges** (`data/hazards.ts`, `systems/hazards.ts`) : un type par biome, cycle télégraphié, dégâts
+  neutres crédités à l'équipe (on peut y attirer les ennemis), retour visuel/sonore seulement près du
+  joueur.
+- **Bestiaire et succès** : éliminations par type comptées dans les stats de run puis versées au
+  bestiaire à vie ; succès déclaratifs (`data/achievements.ts`) vérifiés à l'encaissement d'une run,
+  payés une fois.
+- **Manette** (Gamepad API, `input/gamepad.ts`) fusionnée avec clavier/souris ; le stick droit prend
+  la visée jusqu'au prochain mouvement de souris ; croix / A / B pilotent les menus.
+
 ## Animation
 
 - Purement côté rendu (`Animator`), pilotée par la vitesse, les événements et l'état des attaques :

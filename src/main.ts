@@ -19,6 +19,8 @@ import { addXp } from './systems/progression';
 import { spawnGroup } from './systems/waves';
 import { emptyInput, type InputFrame } from './game/inputFrame';
 import { KeyboardMouse } from './input/keyboardMouse';
+import { GamepadInput } from './input/gamepad';
+import type { Action } from './data/controls';
 import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Hud } from './render/hud';
@@ -66,7 +68,74 @@ const clock = new FixedStepClock(ENGINE.tickRate, ENGINE.maxStepsPerFrame);
 const fps = new FpsCounter();
 const renderer = new Renderer(canvas);
 const camera = new Camera();
-const input = new KeyboardMouse(canvas);
+const kbm = new KeyboardMouse(canvas);
+const pad = new GamepadInput();
+/** Keyboard/mouse and gamepad merged behind one interface. */
+const input = {
+  get suspended(): boolean {
+    return kbm.suspended;
+  },
+  set suspended(v: boolean) {
+    kbm.suspended = v;
+  },
+  get mouseX(): number {
+    return kbm.mouseX;
+  },
+  get mouseY(): number {
+    return kbm.mouseY;
+  },
+  isHeld: (a: Action): boolean => kbm.isHeld(a) || (!kbm.suspended && pad.isHeld(a)),
+  consumePressed: (a: Action): boolean => {
+    const k = kbm.consumePressed(a);
+    const p = pad.consumePressed(a);
+    return k || (p && !kbm.suspended);
+  },
+  clearEdges: (): void => {
+    kbm.clearEdges();
+    pad.clearEdges();
+  },
+};
+/** Aim mode: the right stick took over until the mouse moves again. */
+let padAim = false;
+let padDir = { x: 1, y: 0 };
+let lastMouse = { x: -1, y: -1 };
+
+/** World point the player aims at (cursor, or right stick around the player). */
+function aimWorld(): { x: number; y: number } {
+  if (pad.aiming) {
+    padAim = true;
+    padDir = { x: pad.aimX, y: pad.aimY };
+  } else if (pad.connected && padAim && (pad.moveX !== 0 || pad.moveY !== 0)) {
+    padDir = normalize(pad.moveX, pad.moveY);
+  }
+  if (kbm.mouseX !== lastMouse.x || kbm.mouseY !== lastMouse.y) {
+    if (lastMouse.x >= 0) padAim = false;
+    lastMouse = { x: kbm.mouseX, y: kbm.mouseY };
+  }
+  if (padAim && game) {
+    const t = game.world.req(game.player, 'transform');
+    return { x: t.x + padDir.x * 240, y: t.y + padDir.y * 240 };
+  }
+  return camera.screenToWorld(kbm.mouseX, kbm.mouseY);
+}
+
+/** D-pad / A / B drive the DOM menus. */
+function padMenus(): void {
+  if (!pad.connected || !menus.open) return;
+  const buttons = Array.from(
+    uiRoot?.querySelectorAll<HTMLButtonElement>('.menus button:not([disabled])') ?? [],
+  );
+  const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  const move = (d: number): void => {
+    const next = buttons[(i + d + buttons.length) % buttons.length] ?? buttons[0];
+    next?.focus();
+  };
+  if (pad.consumeButton(13) || pad.consumeButton(15)) move(1);
+  if (pad.consumeButton(12) || pad.consumeButton(14)) move(-1);
+  if (pad.consumeButton(0)) (buttons[i] ?? buttons[0])?.click();
+  if (pad.consumeButton(1) || pad.consumeButton(9))
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+}
 const sfx = new Sfx();
 const hud = new Hud();
 const minimap = new Minimap();
@@ -406,11 +475,13 @@ registerCommands();
 void loadKeyLayout();
 
 function sampleInput(): InputFrame {
-  const dir = normalize(
+  const keys = normalize(
     (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
     (input.isHeld('down') ? 1 : 0) - (input.isHeld('up') ? 1 : 0),
   );
-  const aim = camera.screenToWorld(input.mouseX, input.mouseY);
+  // Analog stick when the keyboard is idle.
+  const dir = keys.x === 0 && keys.y === 0 ? { x: pad.moveX, y: pad.moveY } : keys;
+  const aim = aimWorld();
   return {
     moveX: dir.x,
     moveY: dir.y,
@@ -468,13 +539,15 @@ let ghostTimer = 0;
 
 runLoop(clock, {
   update() {
+    pad.poll();
+    padMenus();
     handleMetaKeys(game);
     const g = game;
     if (!g || menus.pausesGame) {
       input.clearEdges();
       return;
     }
-    const aim = camera.screenToWorld(input.mouseX, input.mouseY);
+    const aim = aimWorld();
     g.step(input.suspended ? { ...emptyInput(), aimX: aim.x, aimY: aim.y } : sampleInput());
   },
   render(alpha, frameMs) {
@@ -537,7 +610,7 @@ runLoop(clock, {
     const fdt = frozen ? 0 : dt;
     fx.update(fdt);
     anim.update(g, fdt);
-    camera.follow({ x: px, y: py }, camera.screenToWorld(input.mouseX, input.mouseY), fdt);
+    camera.follow({ x: px, y: py }, aimWorld(), fdt);
     renderer.render(g, camera, fx, anim, alpha, fdt, {
       showHitboxes: debug.showHitboxes,
       lighting: saves.data.settings.lighting,

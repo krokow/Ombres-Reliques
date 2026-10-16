@@ -455,6 +455,11 @@ export class Menus {
       <h2>Commandes</h2>
       <table class="mn-table mn-keys">${rows.map(([label, acts]) => `<tr><td>${label}</td><td>${keys(acts)}${label === 'Debug / hitboxes / console' ? ' <kbd>²</kbd>' : ''}</td></tr>`).join('')}</table>
       <p class="mn-help">Les touches suivent la position physique : ZQSD en AZERTY, WASD en QWERTY.</p>
+      <h3>Manette</h3>
+      <p class="mn-help">Stick gauche : bouger · stick droit : viser · RT : attaque · LT : action secondaire ·
+        A : mobilité · X : compétence · Y : ultime · B : interagir · LB / RB : consommables ·
+        croix ← ↑ → : héros 1 / 2 / 3 · croix ↓ : progression · Select : carte · Start : pause.
+        Dans les menus : croix pour choisir, A pour valider, B pour revenir.</p>
       <div class="mn-buttons mn-inline"><button data-action="screen" data-arg="title">Retour</button></div>`;
   }
 

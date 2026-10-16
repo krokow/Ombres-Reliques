@@ -234,3 +234,13 @@
 - Difficulté relevée + 3 niveaux (Normal, Difficile, Cauchemar).
 - Relief 2,5D des murs et éclairage dynamique (torches, sorts, feux).
 - 237 tests.
+
+## Contenu – livré
+
+- 6 nouveaux ennemis : Spectre errant, Gelée de sève (+ gouttes), Fouisseur, Porte-pavois, Prêtresse
+  des cendres, Mimique ; 3 comportements (téléportation, soin, enfouissement), bouclier frontal, division.
+- Événements aléatoires : embuscade, mimique, fontaine, faille chronométrée, marchand ambulant.
+- Pièges par biome : pics, ronces, bouches de feu.
+- Bestiaire et 13 succès récompensés.
+- Support manette (jeu et menus).
+- 253 tests.
